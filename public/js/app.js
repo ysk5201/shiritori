@@ -1,0 +1,481 @@
+import { START_CHARS, checkWord, lastChar } from './kana.js';
+
+const STORAGE_KEY = 'shiritori:setup:v1';
+const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 8;
+const WARN_SECONDS = 5;
+
+const ERROR_MESSAGES = {
+  empty: '言葉を入力してね',
+  notKana: 'ひらがな・カタカナで入力してね(漢字は読みで)',
+  tooShort: '2文字以上の言葉にしてね',
+  wrongStart: (c) => `「${c}」から始まる言葉にしてね`,
+  used: 'その言葉はもう出たよ',
+};
+
+const OUT_REASONS = {
+  n: (word) => `「${word}」は「ん」で終わっちゃった…`,
+  time: () => '時間切れ…',
+  ng: (word) => `「${word}」はみんなに認められなかった…`,
+  giveup: () => 'こうさん…',
+};
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- 設定 ----------
+
+const defaultSetup = () => ({
+  players: ['プレイヤー1', 'プレイヤー2'],
+  timeLimit: 30,
+  firstWord: 'shiritori',
+  longVowel: 'skip',
+  ignoreDakuten: false,
+  judge: true,
+  vibrate: true,
+});
+
+function loadSetup() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && Array.isArray(saved.players)) return { ...defaultSetup(), ...saved };
+  } catch {
+    // 保存できない環境では毎回初期値で始める
+  }
+  return defaultSetup();
+}
+
+function saveSetup() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(setup));
+  } catch {
+    // 同上
+  }
+}
+
+let setup = loadSetup();
+
+function renderPlayerList() {
+  const list = $('player-list');
+  list.replaceChildren();
+  setup.players.forEach((name, i) => {
+    const li = document.createElement('li');
+    li.className = 'player-row';
+
+    const dot = document.createElement('span');
+    dot.className = 'player-dot';
+    dot.style.background = PLAYER_COLORS[i];
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = name;
+    input.maxLength = 12;
+    input.setAttribute('aria-label', `プレイヤー${i + 1}の名前`);
+    input.addEventListener('input', () => {
+      setup.players[i] = input.value;
+      saveSetup();
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-icon';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `${name || `プレイヤー${i + 1}`}を削除`);
+    remove.disabled = setup.players.length <= MIN_PLAYERS;
+    remove.addEventListener('click', () => {
+      setup.players.splice(i, 1);
+      saveSetup();
+      renderPlayerList();
+    });
+
+    li.append(dot, input, remove);
+    list.append(li);
+  });
+  $('add-player-btn').disabled = setup.players.length >= MAX_PLAYERS;
+}
+
+function renderSetup() {
+  renderPlayerList();
+  $('opt-time').value = String(setup.timeLimit);
+  $('opt-first').value = setup.firstWord;
+  $('opt-long').value = setup.longVowel;
+  $('opt-dakuten').checked = setup.ignoreDakuten;
+  $('opt-judge').checked = setup.judge;
+  $('opt-vibrate').checked = setup.vibrate;
+  $('setup-error').textContent = '';
+}
+
+function bindSetup() {
+  $('add-player-btn').addEventListener('click', () => {
+    if (setup.players.length >= MAX_PLAYERS) return;
+    setup.players.push(`プレイヤー${setup.players.length + 1}`);
+    saveSetup();
+    renderPlayerList();
+    const inputs = $('player-list').querySelectorAll('input');
+    inputs[inputs.length - 1].select();
+  });
+  $('opt-time').addEventListener('change', (e) => { setup.timeLimit = Number(e.target.value); saveSetup(); });
+  $('opt-first').addEventListener('change', (e) => { setup.firstWord = e.target.value; saveSetup(); });
+  $('opt-long').addEventListener('change', (e) => { setup.longVowel = e.target.value; saveSetup(); });
+  $('opt-dakuten').addEventListener('change', (e) => { setup.ignoreDakuten = e.target.checked; saveSetup(); });
+  $('opt-judge').addEventListener('change', (e) => { setup.judge = e.target.checked; saveSetup(); });
+  $('opt-vibrate').addEventListener('change', (e) => { setup.vibrate = e.target.checked; saveSetup(); });
+  $('start-btn').addEventListener('click', startGame);
+}
+
+// ---------- 画面切り替え・共通 ----------
+
+function show(screenId) {
+  document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== screenId; });
+  $('quit-btn').hidden = screenId === 'screen-setup' || screenId === 'screen-result';
+  window.scrollTo(0, 0);
+}
+
+function vibrate(pattern) {
+  if (!setup.vibrate) return;
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // 非対応端末では何もしない
+  }
+}
+
+function setChip(el, player) {
+  el.textContent = player.name;
+  el.style.setProperty('--player-color', player.color);
+}
+
+function renderHistory(list, history, { limit } = {}) {
+  list.replaceChildren();
+  const items = limit ? history.slice(-limit) : history;
+  for (const entry of items) {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+    const player = entry.player === null ? null : game.players[entry.player];
+    li.style.setProperty('--player-color', player ? player.color : 'var(--muted)');
+
+    const who = document.createElement('span');
+    who.className = 'history-who';
+    who.textContent = player ? player.name : 'スタート';
+
+    const word = document.createElement('span');
+    word.className = 'history-word';
+    word.textContent = entry.word;
+
+    li.append(who, word);
+    list.append(li);
+  }
+  list.scrollTop = list.scrollHeight;
+}
+
+// ---------- ゲーム ----------
+
+let game = null;
+let timer = null;
+
+function rules() {
+  return { longVowel: game.settings.longVowel, ignoreDakuten: game.settings.ignoreDakuten };
+}
+
+function startGame() {
+  const names = setup.players.map((n) => n.trim());
+  if (names.some((n) => n === '')) {
+    $('setup-error').textContent = '名前が空のプレイヤーがいます';
+    return;
+  }
+  if (new Set(names).size !== names.length) {
+    $('setup-error').textContent = '同じ名前のプレイヤーがいます';
+    return;
+  }
+
+  game = {
+    settings: { ...setup },
+    players: names.map((name, i) => ({ name, color: PLAYER_COLORS[i], alive: true, outReason: null })),
+    history: [],
+    used: new Set(),
+    required: '',
+    current: 0,
+    pendingWord: null,
+  };
+
+  if (setup.firstWord === 'shiritori') {
+    game.history.push({ word: 'しりとり', player: null });
+    game.used.add('しりとり');
+    game.required = lastChar('しりとり', rules());
+  } else {
+    game.required = START_CHARS[Math.floor(Math.random() * START_CHARS.length)];
+  }
+
+  showHandoff();
+}
+
+function alivePlayers() {
+  return game.players.filter((p) => p.alive);
+}
+
+function advanceTurn() {
+  const n = game.players.length;
+  for (let step = 1; step <= n; step++) {
+    const idx = (game.current + step) % n;
+    if (game.players[idx].alive) {
+      game.current = idx;
+      return;
+    }
+  }
+}
+
+function showHandoff() {
+  const player = game.players[game.current];
+  setChip($('handoff-name'), player);
+  $('handoff-char').textContent = game.required;
+  show('screen-handoff');
+}
+
+function showTurn() {
+  const player = game.players[game.current];
+  setChip($('turn-player'), player);
+  $('required-char').textContent = game.required;
+  $('answer-error').textContent = '';
+  const input = $('answer-input');
+  input.value = '';
+  renderHistory($('turn-history'), game.history, { limit: 30 });
+  show('screen-turn');
+  // 受け取ったボタンのタップ中に呼ぶとキーボードが開きやすい
+  input.focus();
+  startTimer();
+}
+
+// ---------- タイマー ----------
+
+function startTimer() {
+  stopTimer();
+  const limit = game.settings.timeLimit;
+  const bar = $('timer-bar');
+  const fill = $('timer-fill');
+  const text = $('timer-text');
+  bar.hidden = limit === 0;
+  text.textContent = '';
+  if (limit === 0) return;
+
+  const deadline = performance.now() + limit * 1000;
+  let warned = false;
+
+  const tick = () => {
+    const remainingMs = Math.max(0, deadline - performance.now());
+    const ratio = remainingMs / (limit * 1000);
+    const seconds = Math.ceil(remainingMs / 1000);
+    fill.style.transform = `scaleX(${ratio})`;
+    bar.dataset.level = ratio > 0.5 ? 'ok' : seconds > WARN_SECONDS ? 'warn' : 'danger';
+    text.textContent = `残り ${seconds} 秒`;
+
+    if (!warned && seconds <= WARN_SECONDS) {
+      warned = true;
+      vibrate(80);
+    }
+    if (remainingMs <= 0) {
+      stopTimer();
+      vibrate([200, 100, 200]);
+      eliminate('time');
+    }
+  };
+  tick();
+  timer = setInterval(tick, 100);
+}
+
+function stopTimer() {
+  if (timer !== null) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+// ---------- 回答・判定 ----------
+
+function submitAnswer(e) {
+  e.preventDefault();
+  const result = checkWord($('answer-input').value, {
+    required: game.required,
+    used: game.used,
+    rules: rules(),
+  });
+
+  if (!result.ok) {
+    const msg = ERROR_MESSAGES[result.reason];
+    showAnswerError(typeof msg === 'function' ? msg(game.required) : msg);
+    return;
+  }
+
+  stopTimer();
+  $('answer-input').blur();
+  if (result.endsWithN) {
+    eliminate('n', result.word);
+    return;
+  }
+  if (game.settings.judge) {
+    showJudge(result.word);
+  } else {
+    acceptWord(result.word);
+  }
+}
+
+function showAnswerError(message) {
+  const el = $('answer-error');
+  el.textContent = message;
+  const form = $('answer-form');
+  form.classList.remove('shake');
+  void form.offsetWidth; // アニメーションを再生し直す
+  form.classList.add('shake');
+  vibrate(40);
+}
+
+function showJudge(word) {
+  game.pendingWord = word;
+  setChip($('judge-player'), game.players[game.current]);
+  $('judge-word').textContent = word;
+
+  const list = $('judge-list');
+  list.replaceChildren();
+  game.players.forEach((p, i) => {
+    if (!p.alive || i === game.current) return;
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'judge-toggle';
+    btn.style.setProperty('--player-color', p.color);
+    btn.dataset.vote = 'ok';
+    btn.setAttribute('aria-pressed', 'false');
+
+    const name = document.createElement('span');
+    name.textContent = p.name;
+    const mark = document.createElement('span');
+    mark.className = 'judge-mark';
+    mark.textContent = '⭕';
+
+    btn.append(name, mark);
+    btn.addEventListener('click', () => {
+      const ng = btn.dataset.vote === 'ok';
+      btn.dataset.vote = ng ? 'ng' : 'ok';
+      btn.setAttribute('aria-pressed', String(ng));
+      mark.textContent = ng ? '❌' : '⭕';
+    });
+    li.append(btn);
+    list.append(li);
+  });
+  show('screen-judge');
+}
+
+function decideJudge() {
+  const votes = [...$('judge-list').querySelectorAll('.judge-toggle')];
+  const ng = votes.filter((b) => b.dataset.vote === 'ng').length;
+  const word = game.pendingWord;
+  game.pendingWord = null;
+  // 反対が過半数のときだけ却下(同数ならセーフ)
+  if (ng * 2 > votes.length) {
+    eliminate('ng', word);
+  } else {
+    acceptWord(word);
+  }
+}
+
+function acceptWord(word) {
+  game.history.push({ word, player: game.current });
+  game.used.add(word);
+  game.required = lastChar(word, rules());
+  advanceTurn();
+  showHandoff();
+}
+
+function eliminate(reason, word) {
+  stopTimer();
+  const player = game.players[game.current];
+  player.alive = false;
+  player.outReason = reason;
+
+  setChip($('out-name'), player);
+  $('out-reason').textContent = OUT_REASONS[reason](word);
+  const remaining = alivePlayers().length;
+  if (remaining <= 1) {
+    $('out-remaining').textContent = '';
+    $('out-btn').textContent = '結果を見る';
+  } else {
+    $('out-remaining').textContent = `のこり ${remaining} 人`;
+    $('out-btn').textContent = '次の人へ';
+  }
+  show('screen-out');
+}
+
+function afterOut() {
+  if (alivePlayers().length <= 1) {
+    showResult();
+    return;
+  }
+  advanceTurn();
+  showHandoff();
+}
+
+// ---------- 結果 ----------
+
+function showResult() {
+  const winner = alivePlayers()[0];
+  setChip($('result-winner'), winner);
+
+  const played = game.history.filter((h) => h.player !== null);
+  const longest = played.reduce((best, h) => (!best || h.word.length > best.word.length ? h : best), null);
+  const counts = game.players.map((_, i) => played.filter((h) => h.player === i).length);
+  const topCount = Math.max(...counts);
+
+  const stats = [
+    ['つながった数', `${played.length} 語`],
+    ['いちばん長い言葉', longest ? `${longest.word}(${game.players[longest.player].name})` : '—'],
+    ['いちばん答えた人', topCount > 0
+      ? `${game.players.filter((_, i) => counts[i] === topCount).map((p) => p.name).join('、')}(${topCount} 語)`
+      : '—'],
+  ];
+  const dl = $('result-stats');
+  dl.replaceChildren();
+  for (const [label, value] of stats) {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    dl.append(dt, dd);
+  }
+
+  renderHistory($('result-history'), game.history);
+  show('screen-result');
+}
+
+function quitGame() {
+  if (!confirm('ゲームを中断して設定にもどりますか？')) return;
+  stopTimer();
+  game = null;
+  renderSetup();
+  show('screen-setup');
+}
+
+// ---------- 起動 ----------
+
+function init() {
+  bindSetup();
+  renderSetup();
+
+  $('handoff-btn').addEventListener('click', showTurn);
+  $('answer-form').addEventListener('submit', submitAnswer);
+  $('giveup-btn').addEventListener('click', () => {
+    if (confirm('こうさんしますか？')) eliminate('giveup');
+  });
+  $('judge-btn').addEventListener('click', decideJudge);
+  $('out-btn').addEventListener('click', afterOut);
+  $('again-btn').addEventListener('click', startGame);
+  $('back-btn').addEventListener('click', () => { game = null; renderSetup(); show('screen-setup'); });
+  $('quit-btn').addEventListener('click', quitGame);
+
+  // ゲーム中に誤ってページを閉じないように
+  window.addEventListener('beforeunload', (e) => {
+    if (game && $('screen-result').hidden) e.preventDefault();
+  });
+
+  show('screen-setup');
+}
+
+init();
