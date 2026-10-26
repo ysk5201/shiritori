@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1d24">
+  <meta name="description" content="1台のスマホを回して、声を出さずに遊べるしりとり">
+  <title>しずかにしりとり</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="appbar">
+    <h1 class="appbar-title">しずかにしりとり</h1>
+    <button type="button" class="btn-text" id="quit-btn" hidden>中断</button>
+  </header>
+
+  <main>
+    <!-- 設定 -->
+    <section class="screen" id="screen-setup">
+      <div class="card">
+        <h2 class="card-title">プレイヤー</h2>
+        <ul class="player-list" id="player-list"></ul>
+        <button type="button" class="btn btn-ghost" id="add-player-btn">＋ プレイヤーを追加</button>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">ルール</h2>
+        <label class="field">
+          <span>制限時間</span>
+          <select id="opt-time">
+            <option value="0">なし</option>
+            <option value="15">15秒</option>
+            <option value="30">30秒</option>
+            <option value="60">60秒</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>最初の言葉</span>
+          <select id="opt-first">
+            <option value="shiritori">「しりとり」から</option>
+            <option value="random">ランダムな文字から</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>「ー」で終わる言葉</span>
+          <select id="opt-long">
+            <option value="skip">コーヒー → ひ</option>
+            <option value="vowel">コーヒー → い(母音)</option>
+          </select>
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="opt-dakuten">
+          <span>濁点・半濁点を区別しない(か＝が＝ぱ)</span>
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="opt-judge">
+          <span>みんなで判定する(⭕❌の多数決)</span>
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="opt-vibrate">
+          <span>バイブで知らせる(対応端末のみ)</span>
+        </label>
+      </div>
+
+      <p class="error" id="setup-error" role="alert"></p>
+      <button type="button" class="btn btn-primary btn-large" id="start-btn">はじめる</button>
+    </section>
+
+    <!-- 手渡し -->
+    <section class="screen screen-center" id="screen-handoff" hidden>
+      <p class="muted">スマホを渡してね</p>
+      <p class="handoff-label">次は</p>
+      <p class="handoff-name chip" id="handoff-name"></p>
+      <p class="handoff-next">「<span id="handoff-char"></span>」から</p>
+      <button type="button" class="btn btn-primary btn-large" id="handoff-btn">受け取った！</button>
+    </section>
+
+    <!-- 回答 -->
+    <section class="screen screen-turn" id="screen-turn" hidden>
+      <div class="turn-head">
+        <span class="chip" id="turn-player"></span>
+        <span class="timer-text" id="timer-text"></span>
+      </div>
+      <div class="timer-bar" id="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+
+      <ol class="history" id="turn-history"></ol>
+
+      <form class="answer" id="answer-form" autocomplete="off">
+        <div class="required">
+          <span class="required-char" id="required-char"></span>
+          <span class="muted">から始まる言葉</span>
+        </div>
+        <div class="answer-row">
+          <input type="text" id="answer-input" lang="ja" inputmode="text" enterkeyhint="done"
+                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                 placeholder="ひらがな・カタカナ" aria-label="答え">
+          <button type="submit" class="btn btn-primary">決定</button>
+        </div>
+        <p class="error" id="answer-error" role="alert"></p>
+        <button type="button" class="btn-text btn-giveup" id="giveup-btn">こうさんする</button>
+      </form>
+    </section>
+
+    <!-- みんなで判定 -->
+    <section class="screen screen-center" id="screen-judge" hidden>
+      <p class="muted">みんなに画面を見せてね</p>
+      <p><span class="chip" id="judge-player"></span> の答え</p>
+      <p class="judge-word" id="judge-word"></p>
+      <p class="muted">ある言葉？ ❌ をタップで反対</p>
+      <ul class="judge-list" id="judge-list"></ul>
+      <button type="button" class="btn btn-primary btn-large" id="judge-btn">判定する</button>
+    </section>
+
+    <!-- 脱落 -->
+    <section class="screen screen-center" id="screen-out" hidden>
+      <p class="out-icon" aria-hidden="true">💥</p>
+      <p class="handoff-name chip" id="out-name"></p>
+      <p class="out-reason" id="out-reason"></p>
+      <p class="muted" id="out-remaining"></p>
+      <button type="button" class="btn btn-primary btn-large" id="out-btn">次へ</button>
+    </section>
+
+    <!-- 結果 -->
+    <section class="screen" id="screen-result" hidden>
+      <div class="card result-hero">
+        <p class="muted">勝者</p>
+        <p class="handoff-name chip" id="result-winner"></p>
+      </div>
+      <div class="card">
+        <dl class="stats" id="result-stats"></dl>
+      </div>
+      <div class="card">
+        <h2 class="card-title">つながった言葉</h2>
+        <ol class="history history-full" id="result-history"></ol>
+      </div>
+      <button type="button" class="btn btn-primary btn-large" id="again-btn">同じメンバーでもう一度</button>
+      <button type="button" class="btn btn-ghost" id="back-btn">設定にもどる</button>
+    </section>
+  </main>
+</body>
+</html>
