@@ -22,11 +22,38 @@ for (const [vowel, chars] of Object.entries(VOWEL_ROWS)) {
 // 最初の文字としてランダムに選ぶ候補(「ん」や使いにくい文字は除く)
 export const START_CHARS = [...'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわがぎぐげござじずぜぞだでどばびぶべぼぱぴぷぺぽ'];
 
-// アプリ内キーボードの五十音表(列ごと、上から あ段→お段)。空文字は空きマス。
-export const KEYBOARD_COLUMNS = [
-  'あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの',
-  'はひふへほ', 'まみむめも', ['や', '', 'ゆ', '', 'よ'], 'らりるれろ', ['わ', 'を', 'ん', 'ー', ''],
-].map((col) => [...col]);
+// フリック入力のキー。並びは [タップ, 左, 上, 右, 下](iPhone のかなキーボードと同じ)。空文字はその方向に文字なし。
+export const FLICK_DIRECTIONS = ['center', 'left', 'up', 'right', 'down'];
+
+export const FLICK_KEYS = {
+  'あ': [...'あいうえお'],
+  'か': [...'かきくけこ'],
+  'さ': [...'さしすせそ'],
+  'た': [...'たちつてと'],
+  'な': [...'なにぬねの'],
+  'は': [...'はひふへほ'],
+  'ま': [...'まみむめも'],
+  'や': ['や', '', 'ゆ', '', 'よ'],
+  'ら': [...'らりるれろ'],
+  'わ': ['わ', 'を', 'ん', 'ー', ''],
+};
+
+// 同じキーを続けてタップしたときの文字の順番(あ→い→う…)
+const TAP_CYCLES = {
+  'あ': [...'あいうえおぁぃぅぇぉ'],
+  'た': [...'たちつてとっ'],
+  'や': [...'やゆよゃゅょ'],
+  'わ': [...'わをんー'],
+};
+
+export function flickChar(key, direction) {
+  return FLICK_KEYS[key][FLICK_DIRECTIONS.indexOf(direction)] ?? '';
+}
+
+export function tapCycleNext(key, current) {
+  const cycle = TAP_CYCLES[key] ?? FLICK_KEYS[key].filter((c) => c !== '');
+  return cycle[(cycle.indexOf(current) + 1) % cycle.length];
+}
 
 // 「゛゜小」キーで切り替わる文字の組
 const VARIANT_GROUPS = [

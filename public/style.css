@@ -10,6 +10,10 @@
   --warn: #f08c00;
   --ok: #2f9e44;
   --radius: 14px;
+  --kb-bg: #d4d6dc;
+  --key-bg: #ffffff;
+  --key-func-bg: #abb0ba;
+  --key-shadow: #898a8d;
   color-scheme: light;
 }
 
@@ -25,6 +29,10 @@
     --danger: #ff6b6b;
     --warn: #fcc419;
     --ok: #51cf66;
+    --kb-bg: #2b2b2b;
+    --key-bg: #6b6b6b;
+    --key-func-bg: #464646;
+    --key-shadow: #1a1a1a;
     color-scheme: dark;
   }
 }
@@ -308,56 +316,88 @@ main {
 
 .btn-giveup { margin-left: auto; font-size: 0.85rem; }
 
-/* ---------- アプリ内キーボード ---------- */
+/* ---------- アプリ内キーボード(フリック) ---------- */
 
 .keyboard {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 50px);
+  grid-template-areas:
+    "a   ka  sa  del"
+    "ta  na  ha  clr"
+    "ma  ya  ra  ent"
+    "var wa  bar ent";
+  gap: 6px;
+  padding: 6px;
+  margin: 0 -10px;
+  border-radius: 16px;
+  background: var(--kb-bg);
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none; /* フリック中に画面がスクロールしないように */
 }
 
 .key {
-  height: 44px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 1px 0 var(--border);
-  font-size: 1.15rem;
-  font-weight: 600;
+  border-radius: 10px;
+  background: var(--key-bg);
+  color: var(--text);
+  box-shadow: 0 1px 0 var(--key-shadow);
+  font-size: 1.45rem;
   cursor: pointer;
-  touch-action: manipulation;
 }
 
-.key:active { background: var(--border); }
+.key-char.is-pressed,
+.key:active { background: var(--key-func-bg); }
 
-.key-blank { background: transparent; box-shadow: none; }
+.key-func { background: var(--key-func-bg); font-size: 1.3rem; }
 
-.key-func { font-size: 0.95rem; background: var(--border); }
+.key-func:active { background: var(--key-bg); }
 
-.key-func:active { background: var(--surface); }
+.key-small { font-size: 0.95rem; }
 
-.key-enter { background: var(--primary); color: var(--primary-text); font-size: 1rem; }
+.key-enter { background: var(--primary); color: var(--primary-text); font-size: 1.05rem; font-weight: 700; }
 
-.key-enter:active { opacity: 0.8; background: var(--primary); }
+.key-enter:active { background: var(--primary); opacity: 0.8; }
 
-.key-span-3 { grid-column: span 3; }
-
-.key-span-4 { grid-column: span 4; }
-
-@media (max-width: 340px) {
-  .keyboard { gap: 3px; }
-  .key { height: 40px; font-size: 1rem; }
+/* フリックの候補表示(押したキーを中心に十字に出す) */
+.flick-guide {
+  position: absolute;
+  display: grid;
+  grid-template-columns: repeat(3, var(--cell-w));
+  grid-template-rows: repeat(3, var(--cell-h));
+  grid-template-areas:
+    ".    up     ."
+    "left center right"
+    ".    down   .";
+  pointer-events: none;
+  z-index: 10;
 }
 
-.shake { animation: shake 0.3s; }
+.flick-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -2px;
+  background: var(--key-bg);
+  color: var(--text);
+  font-size: 1.6rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  75% { transform: translateX(6px); }
+.flick-center { grid-area: center; border-radius: 10px; }
+.flick-left { grid-area: left; border-radius: 10px 0 0 10px; }
+.flick-right { grid-area: right; border-radius: 0 10px 10px 0; }
+.flick-up { grid-area: up; border-radius: 10px 10px 0 0; }
+.flick-down { grid-area: down; border-radius: 0 0 10px 10px; }
+
+.flick-cell.is-active { background: var(--primary); color: var(--primary-text); }
+
+@media (max-height: 640px) {
+  .keyboard { grid-template-rows: repeat(4, 44px); }
 }
 
 /* ---------- 判定 ---------- */

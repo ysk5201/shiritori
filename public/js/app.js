@@ -1,4 +1,4 @@
-import { START_CHARS, KEYBOARD_COLUMNS, checkWord, cycleVariant, lastChar } from './kana.js';
+import { START_CHARS, FLICK_DIRECTIONS, FLICK_KEYS, checkWord, cycleVariant, flickChar, lastChar, tapCycleNext } from './kana.js';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
 const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
@@ -238,6 +238,7 @@ function showTurn() {
   $('required-char').textContent = game.required;
   $('answer-error').textContent = '';
   typed = '';
+  lastTap = null;
   renderTyped();
   renderHistory($('turn-history'), game.history, { limit: 30 });
   show('screen-turn');
@@ -289,9 +290,14 @@ function stopTimer() {
 }
 
 // ---------- アプリ内キーボード ----------
-// 端末のキーボードだと予測変換がヒントになってしまうため、自前のキーボードで入力する
+// 端末のキーボードだと予測変換がヒントになってしまうため、自前のフリックキーボードで入力する
+
+const FLICK_THRESHOLD = 18; // これ以上指が動いたらフリックとみなす(px)
+const MULTI_TAP_MS = 1000; // 同じキーの連続タップとみなす間隔
 
 let typed = '';
+let lastTap = null; // { key, char, time } 連続タップで文字を進めるための記録
+let flick = null; // 押している最中のキーの状態
 
 function renderTyped() {
   const display = $('answer-display');
@@ -306,47 +312,152 @@ function typeChar(c) {
   renderTyped();
 }
 
+function tapKey(key) {
+  const now = performance.now();
+  const center = flickChar(key, 'center');
+  if (lastTap && lastTap.key === key && now - lastTap.time < MULTI_TAP_MS && typed.endsWith(lastTap.char)) {
+    const next = tapCycleNext(key, lastTap.char);
+    typed = typed.slice(0, -1) + next;
+    renderTyped();
+    lastTap = { key, char: next, time: now };
+    return;
+  }
+  typeChar(center);
+  lastTap = { key, char: center, time: now };
+}
+
 function cycleLastChar() {
+  lastTap = null;
   if (typed === '') return;
   typed = typed.slice(0, -1) + cycleVariant(typed.slice(-1));
   renderTyped();
 }
 
 function deleteChar() {
+  lastTap = null;
   typed = typed.slice(0, -1);
   $('answer-error').textContent = '';
   renderTyped();
 }
 
-function makeKey(label, onPress, className = '') {
+function flickDirection(dx, dy) {
+  if (Math.hypot(dx, dy) < FLICK_THRESHOLD) return 'center';
+  if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 'left' : 'right';
+  return dy < 0 ? 'up' : 'down';
+}
+
+// 押している間、キーの上下左右に入力候補を十字に表示する
+function showFlickGuide(keyEl, key) {
+  const guide = $('flick-guide');
+  guide.replaceChildren();
+  for (const dir of FLICK_DIRECTIONS) {
+    const c = flickChar(key, dir);
+    const cell = document.createElement('span');
+    cell.className = `flick-cell flick-${dir}`;
+    cell.dataset.dir = dir;
+    cell.textContent = c;
+    cell.hidden = c === '';
+    guide.append(cell);
+  }
+  const kb = $('keyboard').getBoundingClientRect();
+  const r = keyEl.getBoundingClientRect();
+  guide.style.setProperty('--cell-w', `${r.width}px`);
+  guide.style.setProperty('--cell-h', `${r.height}px`);
+  guide.style.left = `${r.left - kb.left - r.width}px`;
+  guide.style.top = `${r.top - kb.top - r.height}px`;
+  guide.hidden = false;
+  updateFlickGuide('center');
+}
+
+function updateFlickGuide(dir) {
+  for (const cell of $('flick-guide').children) {
+    cell.classList.toggle('is-active', cell.dataset.dir === dir);
+  }
+}
+
+function hideFlickGuide() {
+  $('flick-guide').hidden = true;
+}
+
+function bindFlickKey(keyEl, key) {
+  keyEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    keyEl.setPointerCapture(e.pointerId);
+    flick = { keyEl, key, x: e.clientX, y: e.clientY, dir: 'center', pointerId: e.pointerId };
+    keyEl.classList.add('is-pressed');
+    showFlickGuide(keyEl, key);
+  });
+  keyEl.addEventListener('pointermove', (e) => {
+    if (!flick || flick.pointerId !== e.pointerId) return;
+    const dir = flickDirection(e.clientX - flick.x, e.clientY - flick.y);
+    // 文字のない方向は無効(タップ扱いにしない)
+    flick.dir = dir === 'center' || flickChar(key, dir) !== '' ? dir : null;
+    updateFlickGuide(flick.dir);
+  });
+  const end = (commit) => (e) => {
+    if (!flick || flick.pointerId !== e.pointerId) return;
+    const { dir } = flick;
+    flick = null;
+    keyEl.classList.remove('is-pressed');
+    hideFlickGuide();
+    if (!commit || dir === null) return;
+    if (dir === 'center') {
+      tapKey(key);
+    } else {
+      lastTap = null;
+      typeChar(flickChar(key, dir));
+    }
+  };
+  keyEl.addEventListener('pointerup', end(true));
+  keyEl.addEventListener('pointercancel', end(false));
+}
+
+function makeKey(label, className, area) {
   const key = document.createElement('button');
   key.type = 'button';
   key.className = `key ${className}`.trim();
+  key.style.gridArea = area;
   key.textContent = label;
-  key.addEventListener('click', onPress);
   return key;
 }
 
 function buildKeyboard() {
   const keyboard = $('keyboard');
-  const rows = KEYBOARD_COLUMNS[0].length;
-  for (let row = 0; row < rows; row++) {
-    for (const column of KEYBOARD_COLUMNS) {
-      const c = column[row];
-      if (c === '') {
-        const blank = document.createElement('span');
-        blank.className = 'key key-blank';
-        keyboard.append(blank);
-      } else {
-        keyboard.append(makeKey(c, () => typeChar(c)));
-      }
-    }
-  }
-  const variant = makeKey('゛゜小', cycleLastChar, 'key-func key-span-3');
-  variant.setAttribute('aria-label', '濁点・半濁点・小さい文字に切り替え');
-  const del = makeKey('⌫ 削除', deleteChar, 'key-func key-span-3');
+  const areas = ['a', 'ka', 'sa', 'ta', 'na', 'ha', 'ma', 'ya', 'ra', 'wa'];
+  Object.keys(FLICK_KEYS).forEach((key, i) => {
+    const el = makeKey(key, 'key-char', areas[i]);
+    bindFlickKey(el, key);
+    keyboard.append(el);
+  });
+
+  const del = makeKey('⌫', 'key-func', 'del');
   del.setAttribute('aria-label', '1文字削除');
-  keyboard.append(variant, del, makeKey('決定', submitAnswer, 'key-enter key-span-4'));
+  del.addEventListener('click', deleteChar);
+
+  const clear = makeKey('全消去', 'key-func key-small', 'clr');
+  clear.addEventListener('click', () => {
+    lastTap = null;
+    typed = '';
+    renderTyped();
+  });
+
+  const variant = makeKey('゛゜小', 'key-func key-small', 'var');
+  variant.setAttribute('aria-label', '濁点・半濁点・小さい文字に切り替え');
+  variant.addEventListener('click', cycleLastChar);
+
+  const bar = makeKey('ー', 'key-func', 'bar');
+  bar.addEventListener('click', () => { lastTap = null; typeChar('ー'); });
+
+  const enter = makeKey('決定', 'key-enter', 'ent');
+  enter.addEventListener('click', submitAnswer);
+
+  const guide = document.createElement('div');
+  guide.className = 'flick-guide';
+  guide.id = 'flick-guide';
+  guide.hidden = true;
+  guide.setAttribute('aria-hidden', 'true');
+
+  keyboard.append(del, clear, variant, bar, enter, guide);
 }
 
 // ---------- 回答・判定 ----------
