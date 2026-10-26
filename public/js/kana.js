@@ -22,6 +22,56 @@ for (const [vowel, chars] of Object.entries(VOWEL_ROWS)) {
 // 最初の文字としてランダムに選ぶ候補(「ん」や使いにくい文字は除く)
 export const START_CHARS = [...'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわがぎぐげござじずぜぞだでどばびぶべぼぱぴぷぺぽ'];
 
+// フリック入力のキー。並びは [タップ, 左, 上, 右, 下](iPhone のかなキーボードと同じ)。空文字はその方向に文字なし。
+export const FLICK_DIRECTIONS = ['center', 'left', 'up', 'right', 'down'];
+
+export const FLICK_KEYS = {
+  'あ': [...'あいうえお'],
+  'か': [...'かきくけこ'],
+  'さ': [...'さしすせそ'],
+  'た': [...'たちつてと'],
+  'な': [...'なにぬねの'],
+  'は': [...'はひふへほ'],
+  'ま': [...'まみむめも'],
+  'や': ['や', '', 'ゆ', '', 'よ'],
+  'ら': [...'らりるれろ'],
+  'わ': ['わ', 'を', 'ん', 'ー', ''],
+};
+
+// 同じキーを続けてタップしたときの文字の順番(あ→い→う…)
+const TAP_CYCLES = {
+  'あ': [...'あいうえおぁぃぅぇぉ'],
+  'た': [...'たちつてとっ'],
+  'や': [...'やゆよゃゅょ'],
+  'わ': [...'わをんー'],
+};
+
+export function flickChar(key, direction) {
+  return FLICK_KEYS[key][FLICK_DIRECTIONS.indexOf(direction)] ?? '';
+}
+
+export function tapCycleNext(key, current) {
+  const cycle = TAP_CYCLES[key] ?? FLICK_KEYS[key].filter((c) => c !== '');
+  return cycle[(cycle.indexOf(current) + 1) % cycle.length];
+}
+
+// 「゛゜小」キーで切り替わる文字の組
+const VARIANT_GROUPS = [
+  'あぁ', 'いぃ', 'うぅゔ', 'えぇ', 'おぉ',
+  'かが', 'きぎ', 'くぐ', 'けげ', 'こご',
+  'さざ', 'しじ', 'すず', 'せぜ', 'そぞ',
+  'ただ', 'ちぢ', 'つっづ', 'てで', 'とど',
+  'はばぱ', 'ひびぴ', 'ふぶぷ', 'へべぺ', 'ほぼぽ',
+  'やゃ', 'ゆゅ', 'よょ', 'わゎ',
+].map((g) => [...g]);
+
+// 濁点・半濁点・小さい文字を順に切り替える(か→が→か、は→ば→ぱ→は)
+export function cycleVariant(c) {
+  const group = VARIANT_GROUPS.find((g) => g.includes(c));
+  if (!group) return c;
+  return group[(group.indexOf(c) + 1) % group.length];
+}
+
 export const DEFAULT_RULES = {
   longVowel: 'skip', // 'skip': 「ー」の前の文字 / 'vowel': 「ー」の前の文字の母音
   ignoreDakuten: false, // true なら「か」と「が」などを同じ文字とみなす

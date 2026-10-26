@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toHiragana, lastChar, checkWord, sameChar } from '../public/js/kana.js';
+import { toHiragana, lastChar, checkWord, sameChar, cycleVariant, flickChar, tapCycleNext } from '../public/js/kana.js';
 
 const vowelRules = { longVowel: 'vowel', ignoreDakuten: false };
 const looseRules = { longVowel: 'skip', ignoreDakuten: true };
@@ -64,4 +64,36 @@ test('checkWord: 小さい文字で始まる要求に大きい文字で答えら
 test('checkWord: 濁点を区別しない設定なら「か」に「が」で答えられる', () => {
   assert.equal(checkWord('がっこう', { required: 'か', used: new Set() }).ok, false);
   assert.equal(checkWord('がっこう', { required: 'か', used: new Set(), rules: looseRules }).ok, true);
+});
+
+test('「゛゜小」キーの切り替え', () => {
+  assert.equal(cycleVariant('か'), 'が');
+  assert.equal(cycleVariant('が'), 'か');
+  assert.equal(cycleVariant('は'), 'ば');
+  assert.equal(cycleVariant('ば'), 'ぱ');
+  assert.equal(cycleVariant('ぱ'), 'は');
+  assert.equal(cycleVariant('つ'), 'っ');
+  assert.equal(cycleVariant('っ'), 'づ');
+  assert.equal(cycleVariant('や'), 'ゃ');
+  assert.equal(cycleVariant('ん'), 'ん');
+});
+
+test('フリックの方向で文字が決まる', () => {
+  assert.equal(flickChar('あ', 'center'), 'あ');
+  assert.equal(flickChar('か', 'left'), 'き');
+  assert.equal(flickChar('さ', 'up'), 'す');
+  assert.equal(flickChar('た', 'right'), 'て');
+  assert.equal(flickChar('な', 'down'), 'の');
+  assert.equal(flickChar('や', 'left'), '');
+  assert.equal(flickChar('わ', 'up'), 'ん');
+  assert.equal(flickChar('わ', 'right'), 'ー');
+});
+
+test('同じキーの連続タップで文字が進む', () => {
+  assert.equal(tapCycleNext('か', 'か'), 'き');
+  assert.equal(tapCycleNext('か', 'こ'), 'か');
+  assert.equal(tapCycleNext('や', 'や'), 'ゆ');
+  assert.equal(tapCycleNext('や', 'よ'), 'ゃ');
+  assert.equal(tapCycleNext('あ', 'お'), 'ぁ');
+  assert.equal(tapCycleNext('わ', 'ー'), 'わ');
 });

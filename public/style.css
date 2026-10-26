@@ -10,6 +10,10 @@
   --warn: #f08c00;
   --ok: #2f9e44;
   --radius: 14px;
+  --kb-bg: #d4d6dc;
+  --key-bg: #ffffff;
+  --key-func-bg: #abb0ba;
+  --key-shadow: #898a8d;
   color-scheme: light;
 }
 
@@ -25,6 +29,10 @@
     --danger: #ff6b6b;
     --warn: #fcc419;
     --ok: #51cf66;
+    --kb-bg: #2b2b2b;
+    --key-bg: #6b6b6b;
+    --key-func-bg: #464646;
+    --key-shadow: #1a1a1a;
     color-scheme: dark;
   }
 }
@@ -156,8 +164,7 @@ main {
 .player-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
 
 .player-row input,
-.field select,
-.answer-row input {
+.field select {
   flex: 1;
   min-width: 0;
   background: var(--bg);
@@ -201,7 +208,7 @@ main {
 
 /* ---------- 回答 ---------- */
 
-.screen-turn { min-height: calc(100dvh - 120px); }
+.screen-turn { min-height: calc(100dvh - 60px); gap: 10px; }
 
 .turn-head { display: flex; justify-content: space-between; align-items: center; }
 
@@ -238,8 +245,8 @@ main {
   flex-direction: column;
   gap: 6px;
   flex: 1;
-  min-height: 80px;
-  max-height: 34dvh;
+  min-height: 60px;
+  max-height: 30dvh;
   overflow-y: auto;
 }
 
@@ -263,28 +270,134 @@ main {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .required { display: flex; align-items: baseline; gap: 8px; }
 
 .required-char { font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--primary); }
 
-.answer-row { display: flex; gap: 8px; }
+.answer-display {
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+}
 
-.answer-row input { font-size: 1.2rem; }
+/* カーソルの点滅 */
+.answer-display::after {
+  content: "";
+  width: 2px;
+  height: 1.2em;
+  margin-left: 2px;
+  background: var(--primary);
+  animation: blink 1s steps(1) infinite;
+}
 
-.btn-giveup { align-self: flex-end; font-size: 0.85rem; }
+.answer-display.is-empty::before {
+  content: "下のキーで入力";
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
 
-.shake { animation: shake 0.3s; }
+@keyframes blink { 50% { opacity: 0; } }
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  75% { transform: translateX(6px); }
+.btn-giveup { margin-left: auto; font-size: 0.85rem; }
+
+/* ---------- アプリ内キーボード(フリック) ---------- */
+
+.keyboard {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 50px);
+  grid-template-areas:
+    "a   ka  sa  del"
+    "ta  na  ha  clr"
+    "ma  ya  ra  ent"
+    "var wa  bar ent";
+  gap: 6px;
+  padding: 6px;
+  margin: 0 -10px;
+  border-radius: 16px;
+  background: var(--kb-bg);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none; /* フリック中に画面がスクロールしないように */
+}
+
+.key {
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--key-bg);
+  color: var(--text);
+  box-shadow: 0 1px 0 var(--key-shadow);
+  font-size: 1.45rem;
+  cursor: pointer;
+}
+
+.key-char.is-pressed,
+.key:active { background: var(--key-func-bg); }
+
+.key-func { background: var(--key-func-bg); font-size: 1.3rem; }
+
+.key-func:active { background: var(--key-bg); }
+
+.key-small { font-size: 0.95rem; }
+
+.key-enter { background: var(--primary); color: var(--primary-text); font-size: 1.05rem; font-weight: 700; }
+
+.key-enter:active { background: var(--primary); opacity: 0.8; }
+
+/* フリックの候補表示(押したキーを中心に十字に出す) */
+.flick-guide {
+  position: absolute;
+  display: grid;
+  grid-template-columns: repeat(3, var(--cell-w));
+  grid-template-rows: repeat(3, var(--cell-h));
+  grid-template-areas:
+    ".    up     ."
+    "left center right"
+    ".    down   .";
+  pointer-events: none;
+  z-index: 10;
+}
+
+.flick-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -2px;
+  background: var(--key-bg);
+  color: var(--text);
+  font-size: 1.6rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.flick-center { grid-area: center; border-radius: 10px; }
+.flick-left { grid-area: left; border-radius: 10px 0 0 10px; }
+.flick-right { grid-area: right; border-radius: 0 10px 10px 0; }
+.flick-up { grid-area: up; border-radius: 10px 10px 0 0; }
+.flick-down { grid-area: down; border-radius: 0 0 10px 10px; }
+
+.flick-cell.is-active { background: var(--primary); color: var(--primary-text); }
+
+@media (max-height: 640px) {
+  .keyboard { grid-template-rows: repeat(4, 44px); }
 }
 
 /* ---------- 判定 ---------- */
