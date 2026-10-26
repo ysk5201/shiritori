@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toHiragana, lastChar, checkWord, sameChar } from '../public/js/kana.js';
+import { toHiragana, lastChar, checkWord, sameChar, cycleVariant, KEYBOARD_COLUMNS } from '../public/js/kana.js';
 
 const vowelRules = { longVowel: 'vowel', ignoreDakuten: false };
 const looseRules = { longVowel: 'skip', ignoreDakuten: true };
@@ -64,4 +64,21 @@ test('checkWord: 小さい文字で始まる要求に大きい文字で答えら
 test('checkWord: 濁点を区別しない設定なら「か」に「が」で答えられる', () => {
   assert.equal(checkWord('がっこう', { required: 'か', used: new Set() }).ok, false);
   assert.equal(checkWord('がっこう', { required: 'か', used: new Set(), rules: looseRules }).ok, true);
+});
+
+test('「゛゜小」キーの切り替え', () => {
+  assert.equal(cycleVariant('か'), 'が');
+  assert.equal(cycleVariant('が'), 'か');
+  assert.equal(cycleVariant('は'), 'ば');
+  assert.equal(cycleVariant('ば'), 'ぱ');
+  assert.equal(cycleVariant('ぱ'), 'は');
+  assert.equal(cycleVariant('つ'), 'っ');
+  assert.equal(cycleVariant('っ'), 'づ');
+  assert.equal(cycleVariant('や'), 'ゃ');
+  assert.equal(cycleVariant('ん'), 'ん');
+});
+
+test('キーボードは10列×5段', () => {
+  assert.equal(KEYBOARD_COLUMNS.length, 10);
+  for (const col of KEYBOARD_COLUMNS) assert.equal(col.length, 5);
 });

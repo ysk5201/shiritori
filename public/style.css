@@ -156,8 +156,7 @@ main {
 .player-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
 
 .player-row input,
-.field select,
-.answer-row input {
+.field select {
   flex: 1;
   min-width: 0;
   background: var(--bg);
@@ -201,7 +200,7 @@ main {
 
 /* ---------- 回答 ---------- */
 
-.screen-turn { min-height: calc(100dvh - 120px); }
+.screen-turn { min-height: calc(100dvh - 60px); gap: 10px; }
 
 .turn-head { display: flex; justify-content: space-between; align-items: center; }
 
@@ -238,8 +237,8 @@ main {
   flex-direction: column;
   gap: 6px;
   flex: 1;
-  min-height: 80px;
-  max-height: 34dvh;
+  min-height: 60px;
+  max-height: 30dvh;
   overflow-y: auto;
 }
 
@@ -263,21 +262,95 @@ main {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .required { display: flex; align-items: baseline; gap: 8px; }
 
 .required-char { font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--primary); }
 
-.answer-row { display: flex; gap: 8px; }
+.answer-display {
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+}
 
-.answer-row input { font-size: 1.2rem; }
+/* カーソルの点滅 */
+.answer-display::after {
+  content: "";
+  width: 2px;
+  height: 1.2em;
+  margin-left: 2px;
+  background: var(--primary);
+  animation: blink 1s steps(1) infinite;
+}
 
-.btn-giveup { align-self: flex-end; font-size: 0.85rem; }
+.answer-display.is-empty::before {
+  content: "下のキーで入力";
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.btn-giveup { margin-left: auto; font-size: 0.85rem; }
+
+/* ---------- アプリ内キーボード ---------- */
+
+.keyboard {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.key {
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--border);
+  font-size: 1.15rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.key:active { background: var(--border); }
+
+.key-blank { background: transparent; box-shadow: none; }
+
+.key-func { font-size: 0.95rem; background: var(--border); }
+
+.key-func:active { background: var(--surface); }
+
+.key-enter { background: var(--primary); color: var(--primary-text); font-size: 1rem; }
+
+.key-enter:active { opacity: 0.8; background: var(--primary); }
+
+.key-span-3 { grid-column: span 3; }
+
+.key-span-4 { grid-column: span 4; }
+
+@media (max-width: 340px) {
+  .keyboard { gap: 3px; }
+  .key { height: 40px; font-size: 1rem; }
+}
 
 .shake { animation: shake 0.3s; }
 

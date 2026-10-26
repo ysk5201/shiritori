@@ -86,20 +86,17 @@
 
       <ol class="history" id="turn-history"></ol>
 
-      <form class="answer" id="answer-form" autocomplete="off">
+      <div class="answer" id="answer-box">
         <div class="required">
           <span class="required-char" id="required-char"></span>
           <span class="muted">から始まる言葉</span>
+          <button type="button" class="btn-text btn-giveup" id="giveup-btn">こうさん</button>
         </div>
-        <div class="answer-row">
-          <input type="text" id="answer-input" lang="ja" inputmode="text" enterkeyhint="done"
-                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                 placeholder="ひらがな・カタカナ" aria-label="答え">
-          <button type="submit" class="btn btn-primary">決定</button>
-        </div>
+        <div class="answer-display" id="answer-display" role="textbox" aria-label="答え" aria-readonly="true"></div>
         <p class="error" id="answer-error" role="alert"></p>
-        <button type="button" class="btn-text btn-giveup" id="giveup-btn">こうさんする</button>
-      </form>
+      </div>
+
+      <div class="keyboard" id="keyboard" aria-label="ひらがなキーボード"></div>
     </section>
 
     <!-- みんなで判定 -->

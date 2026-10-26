@@ -1,10 +1,11 @@
-import { START_CHARS, checkWord, lastChar } from './kana.js';
+import { START_CHARS, KEYBOARD_COLUMNS, checkWord, cycleVariant, lastChar } from './kana.js';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
 const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 const WARN_SECONDS = 5;
+const MAX_WORD_LENGTH = 20;
 
 const ERROR_MESSAGES = {
   empty: '言葉を入力してね',
@@ -236,12 +237,10 @@ function showTurn() {
   setChip($('turn-player'), player);
   $('required-char').textContent = game.required;
   $('answer-error').textContent = '';
-  const input = $('answer-input');
-  input.value = '';
+  typed = '';
+  renderTyped();
   renderHistory($('turn-history'), game.history, { limit: 30 });
   show('screen-turn');
-  // 受け取ったボタンのタップ中に呼ぶとキーボードが開きやすい
-  input.focus();
   startTimer();
 }
 
@@ -289,11 +288,71 @@ function stopTimer() {
   }
 }
 
+// ---------- アプリ内キーボード ----------
+// 端末のキーボードだと予測変換がヒントになってしまうため、自前のキーボードで入力する
+
+let typed = '';
+
+function renderTyped() {
+  const display = $('answer-display');
+  display.textContent = typed;
+  display.classList.toggle('is-empty', typed === '');
+}
+
+function typeChar(c) {
+  if (typed.length >= MAX_WORD_LENGTH) return;
+  typed += c;
+  $('answer-error').textContent = '';
+  renderTyped();
+}
+
+function cycleLastChar() {
+  if (typed === '') return;
+  typed = typed.slice(0, -1) + cycleVariant(typed.slice(-1));
+  renderTyped();
+}
+
+function deleteChar() {
+  typed = typed.slice(0, -1);
+  $('answer-error').textContent = '';
+  renderTyped();
+}
+
+function makeKey(label, onPress, className = '') {
+  const key = document.createElement('button');
+  key.type = 'button';
+  key.className = `key ${className}`.trim();
+  key.textContent = label;
+  key.addEventListener('click', onPress);
+  return key;
+}
+
+function buildKeyboard() {
+  const keyboard = $('keyboard');
+  const rows = KEYBOARD_COLUMNS[0].length;
+  for (let row = 0; row < rows; row++) {
+    for (const column of KEYBOARD_COLUMNS) {
+      const c = column[row];
+      if (c === '') {
+        const blank = document.createElement('span');
+        blank.className = 'key key-blank';
+        keyboard.append(blank);
+      } else {
+        keyboard.append(makeKey(c, () => typeChar(c)));
+      }
+    }
+  }
+  const variant = makeKey('゛゜小', cycleLastChar, 'key-func key-span-3');
+  variant.setAttribute('aria-label', '濁点・半濁点・小さい文字に切り替え');
+  const del = makeKey('⌫ 削除', deleteChar, 'key-func key-span-3');
+  del.setAttribute('aria-label', '1文字削除');
+  keyboard.append(variant, del, makeKey('決定', submitAnswer, 'key-enter key-span-4'));
+}
+
 // ---------- 回答・判定 ----------
 
-function submitAnswer(e) {
-  e.preventDefault();
-  const result = checkWord($('answer-input').value, {
+function submitAnswer() {
+  const result = checkWord(typed, {
     required: game.required,
     used: game.used,
     rules: rules(),
@@ -306,7 +365,6 @@ function submitAnswer(e) {
   }
 
   stopTimer();
-  $('answer-input').blur();
   if (result.endsWithN) {
     eliminate('n', result.word);
     return;
@@ -321,10 +379,10 @@ function submitAnswer(e) {
 function showAnswerError(message) {
   const el = $('answer-error');
   el.textContent = message;
-  const form = $('answer-form');
-  form.classList.remove('shake');
-  void form.offsetWidth; // アニメーションを再生し直す
-  form.classList.add('shake');
+  const box = $('answer-box');
+  box.classList.remove('shake');
+  void box.offsetWidth; // アニメーションを再生し直す
+  box.classList.add('shake');
   vibrate(40);
 }
 
@@ -458,9 +516,15 @@ function quitGame() {
 function init() {
   bindSetup();
   renderSetup();
+  buildKeyboard();
 
   $('handoff-btn').addEventListener('click', showTurn);
-  $('answer-form').addEventListener('submit', submitAnswer);
+  // PC で遊ぶとき用に、Backspace と Enter だけ物理キーボードでも受け付ける
+  document.addEventListener('keydown', (e) => {
+    if ($('screen-turn').hidden || e.isComposing) return;
+    if (e.key === 'Backspace') { e.preventDefault(); deleteChar(); }
+    if (e.key === 'Enter') { e.preventDefault(); submitAnswer(); }
+  });
   $('giveup-btn').addEventListener('click', () => {
     if (confirm('こうさんしますか？')) eliminate('giveup');
   });

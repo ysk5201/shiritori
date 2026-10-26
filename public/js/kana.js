@@ -22,6 +22,29 @@ for (const [vowel, chars] of Object.entries(VOWEL_ROWS)) {
 // 最初の文字としてランダムに選ぶ候補(「ん」や使いにくい文字は除く)
 export const START_CHARS = [...'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわがぎぐげござじずぜぞだでどばびぶべぼぱぴぷぺぽ'];
 
+// アプリ内キーボードの五十音表(列ごと、上から あ段→お段)。空文字は空きマス。
+export const KEYBOARD_COLUMNS = [
+  'あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの',
+  'はひふへほ', 'まみむめも', ['や', '', 'ゆ', '', 'よ'], 'らりるれろ', ['わ', 'を', 'ん', 'ー', ''],
+].map((col) => [...col]);
+
+// 「゛゜小」キーで切り替わる文字の組
+const VARIANT_GROUPS = [
+  'あぁ', 'いぃ', 'うぅゔ', 'えぇ', 'おぉ',
+  'かが', 'きぎ', 'くぐ', 'けげ', 'こご',
+  'さざ', 'しじ', 'すず', 'せぜ', 'そぞ',
+  'ただ', 'ちぢ', 'つっづ', 'てで', 'とど',
+  'はばぱ', 'ひびぴ', 'ふぶぷ', 'へべぺ', 'ほぼぽ',
+  'やゃ', 'ゆゅ', 'よょ', 'わゎ',
+].map((g) => [...g]);
+
+// 濁点・半濁点・小さい文字を順に切り替える(か→が→か、は→ば→ぱ→は)
+export function cycleVariant(c) {
+  const group = VARIANT_GROUPS.find((g) => g.includes(c));
+  if (!group) return c;
+  return group[(group.indexOf(c) + 1) % group.length];
+}
+
 export const DEFAULT_RULES = {
   longVowel: 'skip', // 'skip': 「ー」の前の文字 / 'vowel': 「ー」の前の文字の母音
   ignoreDakuten: false, // true なら「か」と「が」などを同じ文字とみなす
