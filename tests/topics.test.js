@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isKanaWord } from '../public/js/kana.js';
-import { buildTopic, findEntry, remainingStarting, pickPlayableChar } from '../public/js/topics.js';
+import { buildTopic, findEntry, remainingStarting, pickPlayableChar, relaxChar, suggestAnswers } from '../public/js/topics.js';
 
 const rules = { longVowel: 'skip', ignoreDakuten: false };
 const countries = buildTopic('country');
@@ -47,4 +47,36 @@ test('答えが残っている文字だけを選ぶ', () => {
   }
   const allUsed = new Set(countries.entries.map((e) => e.id));
   assert.equal(pickPlayableChar(countries, allUsed, rules), null);
+});
+
+test('濁点を外せば続けられる文字', () => {
+  assert.equal(relaxChar(countries, new Set(), 'ご', rules), 'こ');
+  assert.equal(relaxChar(countries, new Set(), 'ず', rules), 'す');
+  assert.equal(relaxChar(countries, new Set(), 'む', rules), null);
+  const koUsed = new Set(countries.entries.filter((e) => e.readings.some((r) => r[0] === 'こ')).map((e) => e.id));
+  assert.equal(relaxChar(countries, koUsed, 'ご', rules), null);
+});
+
+test('答えの例は最大3件、残りの総数も返す', () => {
+  const ka = suggestAnswers(countries, new Set(), 'か', rules);
+  assert.equal(ka.examples.length, 3);
+  assert.ok(ka.total > 3);
+  // 「り」: リトアニア・リビア・リベリア(リヒテンシュタインは「ん」で終わるので数えない)
+  assert.equal(suggestAnswers(countries, new Set(), 'り', rules).total, 3);
+  const used = new Set([findEntry(countries, 'りびあ').id, findEntry(countries, 'りべりあ').id]);
+  assert.deepEqual(suggestAnswers(countries, used, 'り', rules), { examples: ['リトアニア'], total: 1 });
+  assert.equal(suggestAnswers(countries, new Set(), 'ご', rules).total, 0);
+});
+
+test('答えの例に「ん」で終わる答えは入れない', () => {
+  // 「に」で始まる国: 日本(にほん/にっぽん)は「ん」で終わるので出さない
+  const r = suggestAnswers(countries, new Set(), 'に', rules, 99);
+  assert.ok(r.examples.every((e) => !e.startsWith('日本')));
+  assert.ok(r.examples.includes('ニカラグア'));
+});
+
+test('漢字や別の呼び方の答えには読みを添える', () => {
+  const r = suggestAnswers(countries, new Set(), 'べ', rules, 99);
+  assert.ok(r.examples.includes('アメリカ合衆国(べいこく)'));
+  assert.ok(r.examples.includes('ベトナム'));
 });

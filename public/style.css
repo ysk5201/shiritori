@@ -474,3 +474,13 @@ main:has(> #screen-turn:not([hidden])) { padding-bottom: calc(env(safe-area-inse
 .topic-hint { margin: 0; color: var(--muted); font-size: 0.85rem; }
 
 .history-label { margin-left: auto; color: var(--muted); font-size: 0.8rem; text-align: right; }
+
+.field-help { margin: -4px 0 6px; color: var(--muted); font-size: 0.8rem; }
+
+.missed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.missed-item { border-left: 4px solid var(--player-color); padding-left: 10px; }
+
+.missed-head { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+.missed-body { margin: 2px 0 0; font-weight: 700; }

@@ -33,6 +33,16 @@
             <option value="country">国名(自動判定)</option>
           </select>
         </label>
+        <div id="opt-deadend-field">
+          <label class="field">
+            <span>行き止まり</span>
+            <select id="opt-deadend">
+              <option value="relax">のんびり</option>
+              <option value="stuck">作戦(詰んだら脱落)</option>
+            </select>
+          </label>
+          <p class="field-help" id="deadend-help"></p>
+        </div>
         <label class="field">
           <span>制限時間</span>
           <select id="opt-time">
@@ -135,6 +145,10 @@
       </div>
       <div class="card">
         <dl class="stats" id="result-stats"></dl>
+      </div>
+      <div class="card" id="result-missed-card" hidden>
+        <h2 class="card-title">まだこんな答えがあったよ</h2>
+        <ul class="missed" id="result-missed"></ul>
       </div>
       <div class="card">
         <h2 class="card-title">つながった言葉</h2>
