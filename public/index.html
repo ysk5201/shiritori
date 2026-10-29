@@ -163,6 +163,7 @@
       <p class="out-icon" aria-hidden="true">💥</p>
       <p class="handoff-name chip" id="out-name"></p>
       <p class="out-reason" id="out-reason"></p>
+      <p class="out-detail" id="out-detail" hidden></p>
       <p class="muted" id="out-remaining"></p>
       <button type="button" class="btn btn-primary btn-large" id="out-btn">次へ</button>
     </section>
@@ -175,6 +176,10 @@
       </div>
       <div class="card">
         <dl class="stats" id="result-stats"></dl>
+      </div>
+      <div class="card" id="result-traps-card" hidden>
+        <h2 class="card-title" id="result-traps-title"></h2>
+        <ul class="missed traps" id="result-traps"></ul>
       </div>
       <div class="card" id="result-missed-card" hidden>
         <h2 class="card-title">まだこんな答えがあったよ</h2>

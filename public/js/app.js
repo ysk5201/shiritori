@@ -1,5 +1,5 @@
 import { START_CHARS, FLICK_DIRECTIONS, FLICK_KEYS, checkWord, cycleVariant, flickChar, lastChar, tapCycleNext } from './kana.js?v=__VERSION__';
-import { buildTopic, findEntry, pickPlayableChar, relaxChar, remainingStarting, suggestAnswers } from './topics.js?v=__VERSION__';
+import { buildTopic, deadEndAnswers, findEntry, pickPlayableChar, relaxChar, remainingStarting, suggestAnswers } from './topics.js?v=__VERSION__';
 import { CPU_LEVELS, cpuAnswer } from './cpu.js?v=__VERSION__';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
@@ -40,6 +40,7 @@ const SOLO_HELP = {
 const DEADEND_HELP = {
   relax: '続く答えがない文字になったら、濁点を外して続けます(ご→こ)。それでもなければランダムに引き直します',
   stuck: '続く答えがない文字で終わる答えを出すと、次の人が脱落します(例: 国名で「トーゴ」)',
+  soloStuck: '上級者向け。続く答えがない文字で終わる答え(例:「トーゴ」)を出されると負けです。CPUも中盤から狙ってきます',
 };
 
 // ---------- 設定 ----------
@@ -51,6 +52,7 @@ const defaultSetup = () => ({
   players: ['プレイヤー1', 'プレイヤー2'],
   topic: 'free',
   deadEnd: 'relax', // 続く答えがない文字になったとき: 'relax' 濁点を外す→引き直し / 'stuck' 次の人が脱落
+  soloDeadEnd: 'relax', // 1人用の行き止まりルール(みんなで遊ぶときとは別に持つ)
   timeLimit: 30,
   firstWord: 'shiritori',
   longVowel: 'skip',
@@ -132,6 +134,18 @@ function renderSetupVisibility() {
   $('opt-judge-field').hidden = solo;
   $('opt-time-field').hidden = timeAttack;
   $('opt-deadend-field').hidden = timeAttack || (!solo && setup.topic === 'free');
+  $('opt-deadend').value = deadEndSetting();
+  $('deadend-help').textContent = deadEndHelp();
+}
+
+// 行き止まりルールは「みんなで」と「1人で」で別々に覚える
+function deadEndSetting() {
+  return setup.playMode === 'solo' ? setup.soloDeadEnd : setup.deadEnd;
+}
+
+function deadEndHelp() {
+  const value = deadEndSetting();
+  return DEADEND_HELP[setup.playMode === 'solo' && value === 'stuck' ? 'soloStuck' : value];
 }
 
 function renderSetup() {
@@ -139,8 +153,6 @@ function renderSetup() {
   $('opt-solo').value = setup.soloMode;
   $('opt-level').value = setup.cpuLevel;
   $('opt-topic').value = setup.topic;
-  $('opt-deadend').value = setup.deadEnd;
-  $('deadend-help').textContent = DEADEND_HELP[setup.deadEnd];
   renderSetupVisibility();
   $('opt-time').value = String(setup.timeLimit);
   $('opt-first').value = setup.firstWord;
@@ -176,9 +188,10 @@ function bindSetup() {
     renderSetupVisibility();
   });
   $('opt-deadend').addEventListener('change', (e) => {
-    setup.deadEnd = e.target.value;
+    if (setup.playMode === 'solo') setup.soloDeadEnd = e.target.value;
+    else setup.deadEnd = e.target.value;
     saveSetup();
-    $('deadend-help').textContent = DEADEND_HELP[setup.deadEnd];
+    $('deadend-help').textContent = deadEndHelp();
   });
   $('opt-time').addEventListener('change', (e) => { setup.timeLimit = Number(e.target.value); saveSetup(); });
   $('opt-first').addEventListener('change', (e) => { setup.firstWord = e.target.value; saveSetup(); });
@@ -275,7 +288,7 @@ function startGame() {
   const players = buildPlayers();
   if (!players) return;
   const solo = setup.playMode === 'solo';
-  const settings = solo ? { ...setup, topic: SOLO_TOPIC, judge: false } : { ...setup };
+  const settings = solo ? { ...setup, topic: SOLO_TOPIC, judge: false, deadEnd: setup.soloDeadEnd } : { ...setup };
 
   clearCpuTimer();
   game = {
@@ -416,6 +429,7 @@ function playCpuTurn() {
   game.cpuTimer = setTimeout(() => {
     const move = cpuAnswer(game.topic, game.usedTopicIds, game.required, rules(), game.settings.cpuLevel, {
       stuckWins: game.settings.deadEnd === 'stuck',
+      turn: answeredCount(),
     });
     $('answer-display').classList.remove('is-thinking');
     if (!move) {
@@ -783,6 +797,8 @@ function eliminate(reason, word) {
 
   setChip($('out-name'), player);
   $('out-reason').textContent = reason === 'stuck' ? stuckReason() : OUT_REASONS[reason](word);
+  $('out-detail').textContent = reason === 'stuck' ? stuckDetail() : '';
+  $('out-detail').hidden = reason !== 'stuck';
   const remaining = alivePlayers().length;
   if (remaining <= 1) {
     $('out-remaining').textContent = '';
@@ -799,6 +815,19 @@ function stuckReason() {
   const last = game.history[game.history.length - 1];
   const by = last && last.player !== null ? `(${game.players[last.player].name}さんの「${last.word}」で詰み)` : '';
   return `「${game.required}」で始まる${game.topic.label}がもう残っていない…${by}`;
+}
+
+// 詰みの種明かし。もともと1つもない文字なのか、出し尽くしたのかを説明する
+function stuckDetail() {
+  const { label, noun } = game.topic;
+  const c = game.required;
+  const all = remainingStarting(game.topic, new Set(), c, rules());
+  if (all.length > 0) {
+    return `「${c}」で始まる${label}(${all.map((e) => e.name).join('・')})は、もう全部出ていました。`;
+  }
+  const traps = deadEndAnswers(game.topic, rules()).find((d) => d.char === c);
+  const names = traps ? `${traps.names.join('・')}は、` : '';
+  return `「${c}」で始まる${noun}はもともと1つもありません。${names}答えた時点で相手を詰ませる「詰みの${noun}」です。`;
 }
 
 function finishTimeAttack() {
@@ -860,6 +889,7 @@ function showResult() {
   if (game.mode === 'timeattack') {
     renderStats(showTimeAttackResult());
     renderMissed();
+    renderTraps();
     renderHistory($('result-history'), game.history);
     show('screen-result');
     return;
@@ -889,8 +919,30 @@ function showResult() {
   ];
   renderStats(stats);
   renderMissed();
+  renderTraps();
   renderHistory($('result-history'), game.history);
   show('screen-result');
+}
+
+// 作戦ルールで遊んだときは「詰みの答え」の一覧を見せる(次に自分で使えるように)
+function renderTraps() {
+  const list = $('result-traps');
+  list.replaceChildren();
+  const visible = game.topic && game.settings.deadEnd === 'stuck' && game.mode !== 'timeattack';
+  $('result-traps-card').hidden = !visible;
+  if (!visible) return;
+  $('result-traps-title').textContent = `覚えておくと強い「詰みの${game.topic.noun}」`;
+  for (const { char, names } of deadEndAnswers(game.topic, rules())) {
+    const li = document.createElement('li');
+    const head = document.createElement('p');
+    head.className = 'missed-head';
+    head.textContent = `「${char}」で終わる(「${char}」で始まる${game.topic.noun}はない)`;
+    const body = document.createElement('p');
+    body.className = 'missed-body';
+    body.textContent = names.join('、');
+    li.append(head, body);
+    list.append(li);
+  }
 }
 
 function renderStats(stats) {

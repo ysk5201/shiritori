@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isKanaWord } from '../public/js/kana.js';
-import { buildTopic, findEntry, remainingStarting, pickPlayableChar, relaxChar, suggestAnswers } from '../public/js/topics.js';
+import { buildTopic, findEntry, remainingStarting, pickPlayableChar, relaxChar, suggestAnswers, deadEndAnswers } from '../public/js/topics.js';
 
 const rules = { longVowel: 'skip', ignoreDakuten: false };
 const countries = buildTopic('country');
@@ -79,4 +79,12 @@ test('漢字や別の呼び方の答えには読みを添える', () => {
   const r = suggestAnswers(countries, new Set(), 'べ', rules, 99);
   assert.ok(r.examples.includes('アメリカ合衆国(べいこく)'));
   assert.ok(r.examples.includes('ベトナム'));
+});
+
+test('詰みの国の一覧', () => {
+  const list = deadEndAnswers(countries, rules);
+  const byChar = Object.fromEntries(list.map((d) => [d.char, d.names]));
+  assert.deepEqual(byChar['む'].sort(), ['スリナム', 'ベトナム'].sort());
+  assert.deepEqual(byChar['ご'].sort(), ['コンゴ共和国', 'トーゴ', 'トリニダード・トバゴ'].sort());
+  assert.deepEqual(Object.keys(byChar).sort(), ['ご', 'ず', 'む', 'や', 'ゆ'].sort());
 });

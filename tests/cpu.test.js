@@ -38,7 +38,24 @@ test('つよい CPU は相手が続けにくい答えを選ぶ', () => {
   // 普通のルール: 行き止まりは避けつつ、続く答えがいちばん少ないもの
   const move = cpuAnswer(countries, new Set(), 'と', rules, 'hard');
   assert.ok(remainAfter(move) > 0);
-  // 行き止まりで勝てるルール: 行き止まり(トーゴ・トリニダード・トバゴ)を狙う
-  const stuck = cpuAnswer(countries, new Set(), 'と', rules, 'hard', { stuckWins: true });
+  // 行き止まりで勝てるルール・中盤以降: 行き止まり(トーゴ・トリニダード・トバゴ)を狙う
+  const stuck = cpuAnswer(countries, new Set(), 'と', rules, 'hard', { stuckWins: true, turn: 10, random: () => 0.1 });
   assert.equal(remainAfter(stuck), 0);
+});
+
+test('序盤はどの強さでも詰みを狙わない', () => {
+  const remainAfter = (move) => remainingStarting(countries, new Set([move.entry.id]), lastChar(move.word, rules), rules).length;
+  for (const level of ['easy', 'normal', 'hard']) {
+    for (let i = 0; i < 30; i++) {
+      const move = cpuAnswer(countries, new Set(), 'と', rules, level, { stuckWins: true, turn: 3, random: seq(0.9, Math.random()) });
+      // 「ん」で終わる答え(CPU の負け)は詰みではない
+      if (!endsWithN(move.word, rules)) assert.ok(remainAfter(move) > 0, `${level}: ${move.word}`);
+    }
+  }
+});
+
+test('中盤以降の「つよい」も、詰みを狙うのはときどき', () => {
+  const remainAfter = (move) => remainingStarting(countries, new Set([move.entry.id]), lastChar(move.word, rules), rules).length;
+  const move = cpuAnswer(countries, new Set(), 'と', rules, 'hard', { stuckWins: true, turn: 12, random: () => 0.9 });
+  assert.ok(remainAfter(move) > 0);
 });

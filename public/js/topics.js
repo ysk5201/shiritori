@@ -1,5 +1,5 @@
 // お題(縛り)の定義と判定。答えの一覧を持つお題は、アプリが自動で判定する。
-import { START_CHARS, endsWithN, firstChar, sameChar, stripDakuten, toHiragana } from './kana.js?v=__VERSION__';
+import { START_CHARS, endsWithN, firstChar, lastChar, sameChar, stripDakuten, toHiragana } from './kana.js?v=__VERSION__';
 
 // 国名: 国連加盟国193か国 + 日本が承認している4か国(バチカン・コソボ・クック諸島・ニウエ)。
 // 書式は「表示名|読み|別の読み…」。読みを省くと表示名(カタカナ)から作る。
@@ -216,7 +216,7 @@ function parseEntries(text) {
 
 export const TOPICS = {
   free: { label: 'なし(自由)' },
-  country: { label: '国名', unit: 'か国', source: COUNTRIES },
+  country: { label: '国名', noun: '国', unit: 'か国', source: COUNTRIES },
 };
 
 // お題を使える形にする。自由(一覧なし)なら null。
@@ -228,7 +228,7 @@ export function buildTopic(topicId) {
   for (const entry of entries) {
     for (const reading of entry.readings) byReading.set(reading, entry);
   }
-  return { id: topicId, label: def.label, unit: def.unit, entries, byReading };
+  return { id: topicId, label: def.label, noun: def.noun, unit: def.unit, entries, byReading };
 }
 
 export function findEntry(topic, word) {
@@ -266,6 +266,22 @@ export function suggestAnswers(topic, usedIds, char, rules, count = 3, random = 
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
   return { examples: candidates.slice(0, count), total: candidates.length };
+}
+
+// 「詰みの答え」: 答えた時点で、その終わりの文字から始まる答えが1つもないもの(国名ならトーゴ・スリナムなど)。
+// 戻り値: [{ char: 'ご', names: ['コンゴ共和国', 'トーゴ', …] }, …](一覧の順)
+export function deadEndAnswers(topic, rules) {
+  const byChar = new Map();
+  for (const entry of topic.entries) {
+    for (const reading of entry.readings) {
+      if (endsWithN(reading, rules)) continue;
+      const c = lastChar(reading, rules);
+      if (remainingStarting(topic, new Set(), c, rules).length > 0) continue;
+      if (!byChar.has(c)) byChar.set(c, []);
+      if (!byChar.get(c).includes(entry.name)) byChar.get(c).push(entry.name);
+    }
+  }
+  return [...byChar].map(([char, names]) => ({ char, names }));
 }
 
 // まだ答えが残っている文字からランダムに1つ選ぶ。残っていなければ null。
