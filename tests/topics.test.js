@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isKanaWord } from '../public/js/kana.js';
-import { buildTopic, findEntry, remainingStarting, pickPlayableChar } from '../public/js/topics.js';
+import { buildTopic, findEntry, remainingStarting, pickPlayableChar, relaxChar } from '../public/js/topics.js';
 
 const rules = { longVowel: 'skip', ignoreDakuten: false };
 const countries = buildTopic('country');
@@ -47,4 +47,12 @@ test('答えが残っている文字だけを選ぶ', () => {
   }
   const allUsed = new Set(countries.entries.map((e) => e.id));
   assert.equal(pickPlayableChar(countries, allUsed, rules), null);
+});
+
+test('濁点を外せば続けられる文字', () => {
+  assert.equal(relaxChar(countries, new Set(), 'ご', rules), 'こ');
+  assert.equal(relaxChar(countries, new Set(), 'ず', rules), 'す');
+  assert.equal(relaxChar(countries, new Set(), 'む', rules), null);
+  const koUsed = new Set(countries.entries.filter((e) => e.readings.some((r) => r[0] === 'こ')).map((e) => e.id));
+  assert.equal(relaxChar(countries, koUsed, 'ご', rules), null);
 });

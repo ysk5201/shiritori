@@ -1,5 +1,5 @@
 // お題(縛り)の定義と判定。答えの一覧を持つお題は、アプリが自動で判定する。
-import { START_CHARS, firstChar, sameChar, toHiragana } from './kana.js?v=__VERSION__';
+import { START_CHARS, firstChar, sameChar, stripDakuten, toHiragana } from './kana.js?v=__VERSION__';
 
 // 国名: 国連加盟国193か国 + 日本が承認している4か国(バチカン・コソボ・クック諸島・ニウエ)。
 // 書式は「表示名|読み|別の読み…」。読みを省くと表示名(カタカナ)から作る。
@@ -239,6 +239,13 @@ export function findEntry(topic, word) {
 export function remainingStarting(topic, usedIds, char, rules) {
   return topic.entries.filter((e) => !usedIds.has(e.id)
     && e.readings.some((r) => sameChar(firstChar(r), char, rules)));
+}
+
+// 濁点・半濁点を外せば続けられるなら、その文字を返す(ご → こ)。続けられなければ null。
+export function relaxChar(topic, usedIds, char, rules) {
+  const plain = stripDakuten(char);
+  if (plain === char) return null;
+  return remainingStarting(topic, usedIds, plain, rules).length > 0 ? plain : null;
 }
 
 // まだ答えが残っている文字からランダムに1つ選ぶ。残っていなければ null。
