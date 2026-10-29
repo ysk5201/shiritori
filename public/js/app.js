@@ -1,4 +1,5 @@
 import { START_CHARS, FLICK_DIRECTIONS, FLICK_KEYS, checkWord, cycleVariant, flickChar, lastChar, tapCycleNext } from './kana.js?v=__VERSION__';
+import { buildTopic, findEntry, pickPlayableChar, remainingStarting } from './topics.js?v=__VERSION__';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
 const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
@@ -13,6 +14,8 @@ const ERROR_MESSAGES = {
   tooShort: '2文字以上の言葉にしてね',
   wrongStart: (c) => `「${c}」から始まる言葉にしてね`,
   used: 'その言葉はもう出たよ',
+  notInTopic: (label) => `${label}にないみたい(別の呼び方も試してみて)`,
+  topicUsed: (label) => `その${label}はもう出たよ`,
 };
 
 const OUT_REASONS = {
@@ -28,6 +31,7 @@ const $ = (id) => document.getElementById(id);
 
 const defaultSetup = () => ({
   players: ['プレイヤー1', 'プレイヤー2'],
+  topic: 'free',
   timeLimit: 30,
   firstWord: 'shiritori',
   longVowel: 'skip',
@@ -97,6 +101,7 @@ function renderPlayerList() {
 
 function renderSetup() {
   renderPlayerList();
+  $('opt-topic').value = setup.topic;
   $('opt-time').value = String(setup.timeLimit);
   $('opt-first').value = setup.firstWord;
   $('opt-long').value = setup.longVowel;
@@ -115,6 +120,7 @@ function bindSetup() {
     const inputs = $('player-list').querySelectorAll('input');
     inputs[inputs.length - 1].select();
   });
+  $('opt-topic').addEventListener('change', (e) => { setup.topic = e.target.value; saveSetup(); });
   $('opt-time').addEventListener('change', (e) => { setup.timeLimit = Number(e.target.value); saveSetup(); });
   $('opt-first').addEventListener('change', (e) => { setup.firstWord = e.target.value; saveSetup(); });
   $('opt-long').addEventListener('change', (e) => { setup.longVowel = e.target.value; saveSetup(); });
@@ -162,8 +168,16 @@ function renderHistory(list, history, { limit } = {}) {
     const word = document.createElement('span');
     word.className = 'history-word';
     word.textContent = entry.word;
-
     li.append(who, word);
+
+    // お題の答えは正式な名前も添える(あめりか → アメリカ合衆国)
+    if (entry.label) {
+      const label = document.createElement('span');
+      label.className = 'history-label';
+      label.textContent = entry.label;
+      li.append(label);
+    }
+
     list.append(li);
   }
   list.scrollTop = list.scrollHeight;
@@ -197,17 +211,42 @@ function startGame() {
     required: '',
     current: 0,
     pendingWord: null,
+    topic: buildTopic(setup.topic),
+    usedTopicIds: new Set(),
+    notice: '',
   };
 
   if (setup.firstWord === 'shiritori') {
     game.history.push({ word: 'しりとり', player: null });
     game.used.add('しりとり');
     game.required = lastChar('しりとり', rules());
+  } else if (game.topic) {
+    game.required = pickPlayableChar(game.topic, game.usedTopicIds, rules());
   } else {
     game.required = START_CHARS[Math.floor(Math.random() * START_CHARS.length)];
   }
 
+  nextTurn({ advance: false });
+}
+
+// 次の人の番へ。お題の答えがもう残っていない文字なら、残っている文字に引き直す。
+function nextTurn({ advance = true } = {}) {
+  if (advance) advanceTurn();
+  game.notice = '';
+  if (game.topic && remainingStarting(game.topic, game.usedTopicIds, game.required, rules()).length === 0) {
+    const next = pickPlayableChar(game.topic, game.usedTopicIds, rules());
+    if (next === null) {
+      showResult();
+      return;
+    }
+    game.notice = `「${game.required}」で始まる${game.topic.label}はもうないので、「${next}」から始めます`;
+    game.required = next;
+  }
   showHandoff();
+}
+
+function remainingCount() {
+  return remainingStarting(game.topic, game.usedTopicIds, game.required, rules()).length;
 }
 
 function alivePlayers() {
@@ -229,6 +268,9 @@ function showHandoff() {
   const player = game.players[game.current];
   setChip($('handoff-name'), player);
   $('handoff-char').textContent = game.required;
+  $('handoff-topic').textContent = game.topic ? game.topic.label : '言葉';
+  $('handoff-notice').textContent = game.notice;
+  $('handoff-notice').hidden = game.notice === '';
   show('screen-handoff');
 }
 
@@ -236,6 +278,11 @@ function showTurn() {
   const player = game.players[game.current];
   setChip($('turn-player'), player);
   $('required-char').textContent = game.required;
+  $('required-label').textContent = `から始まる${game.topic ? game.topic.label : '言葉'}`;
+  $('topic-hint').hidden = !game.topic;
+  if (game.topic) {
+    $('topic-hint').textContent = `お題「${game.topic.label}」・「${game.required}」で始まるのは残り ${remainingCount()} ${game.topic.unit}`;
+  }
   $('answer-error').textContent = '';
   typed = '';
   lastTap = null;
@@ -475,12 +522,28 @@ function submitAnswer() {
     return;
   }
 
+  // お題ありなら一覧と照らして自動で判定する(一覧にない答えは入れ直し)
+  let entry = null;
+  if (game.topic) {
+    entry = findEntry(game.topic, result.word);
+    if (!entry) {
+      showAnswerError(ERROR_MESSAGES.notInTopic(game.topic.label));
+      return;
+    }
+    if (game.usedTopicIds.has(entry.id)) {
+      showAnswerError(ERROR_MESSAGES.topicUsed(game.topic.label));
+      return;
+    }
+  }
+
   stopTimer();
   if (result.endsWithN) {
     eliminate('n', result.word);
     return;
   }
-  if (game.settings.judge) {
+  if (entry) {
+    acceptWord(result.word, entry);
+  } else if (game.settings.judge) {
     showJudge(result.word);
   } else {
     acceptWord(result.word);
@@ -546,12 +609,12 @@ function decideJudge() {
   }
 }
 
-function acceptWord(word) {
-  game.history.push({ word, player: game.current });
+function acceptWord(word, entry = null) {
+  game.history.push({ word, player: game.current, label: entry?.name });
   game.used.add(word);
+  if (entry) game.usedTopicIds.add(entry.id);
   game.required = lastChar(word, rules());
-  advanceTurn();
-  showHandoff();
+  nextTurn();
 }
 
 function eliminate(reason, word) {
@@ -578,15 +641,23 @@ function afterOut() {
     showResult();
     return;
   }
-  advanceTurn();
-  showHandoff();
+  nextTurn();
 }
 
 // ---------- 結果 ----------
 
 function showResult() {
-  const winner = alivePlayers()[0];
-  setChip($('result-winner'), winner);
+  stopTimer();
+  const alive = alivePlayers();
+  if (alive.length === 1) {
+    $('result-label').textContent = '勝者';
+    setChip($('result-winner'), alive[0]);
+  } else {
+    // お題の答えを出し尽くしたときは、残っている全員の引き分け
+    $('result-label').textContent = `${game.topic.label}を出し尽くして引き分け！`;
+    $('result-winner').textContent = alive.map((p) => p.name).join('・');
+    $('result-winner').style.setProperty('--player-color', 'var(--primary)');
+  }
 
   const played = game.history.filter((h) => h.player !== null);
   const longest = played.reduce((best, h) => (!best || h.word.length > best.word.length ? h : best), null);

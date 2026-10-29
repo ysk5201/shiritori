@@ -27,6 +27,13 @@
       <div class="card">
         <h2 class="card-title">ルール</h2>
         <label class="field">
+          <span>お題</span>
+          <select id="opt-topic">
+            <option value="free">なし(自由)</option>
+            <option value="country">国名(自動判定)</option>
+          </select>
+        </label>
+        <label class="field">
           <span>制限時間</span>
           <select id="opt-time">
             <option value="0">なし</option>
@@ -55,7 +62,7 @@
         </label>
         <label class="field field-check">
           <input type="checkbox" id="opt-judge">
-          <span>みんなで判定する(⭕❌の多数決)</span>
+          <span>みんなで判定する(⭕❌の多数決。お題ありのときは自動判定)</span>
         </label>
         <label class="field field-check">
           <input type="checkbox" id="opt-vibrate">
@@ -72,7 +79,8 @@
       <p class="muted">スマホを渡してね</p>
       <p class="handoff-label">次は</p>
       <p class="handoff-name chip" id="handoff-name"></p>
-      <p class="handoff-next">「<span id="handoff-char"></span>」から</p>
+      <p class="handoff-next">「<span id="handoff-char"></span>」から始まる<span id="handoff-topic">言葉</span></p>
+      <p class="notice" id="handoff-notice" hidden></p>
       <button type="button" class="btn btn-primary btn-large" id="handoff-btn">受け取った！</button>
     </section>
 
@@ -89,9 +97,10 @@
       <div class="answer" id="answer-box">
         <div class="required">
           <span class="required-char" id="required-char"></span>
-          <span class="muted">から始まる言葉</span>
+          <span class="muted" id="required-label">から始まる言葉</span>
           <button type="button" class="btn-text btn-giveup" id="giveup-btn">こうさん</button>
         </div>
+        <p class="topic-hint" id="topic-hint" hidden></p>
         <div class="answer-display" id="answer-display" role="textbox" aria-label="答え" aria-readonly="true"></div>
         <p class="error" id="answer-error" role="alert"></p>
       </div>
@@ -121,7 +130,7 @@
     <!-- 結果 -->
     <section class="screen" id="screen-result" hidden>
       <div class="card result-hero">
-        <p class="muted">勝者</p>
+        <p class="muted" id="result-label">勝者</p>
         <p class="handoff-name chip" id="result-winner"></p>
       </div>
       <div class="card">

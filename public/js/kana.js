@@ -110,7 +110,7 @@ export function lastChar(word, rules = DEFAULT_RULES) {
   return c;
 }
 
-function firstChar(word) {
+export function firstChar(word) {
   const c = toBig(word[0]);
   return c === 'を' ? 'お' : c;
 }
