@@ -3,6 +3,9 @@ import { buildTopic, deadEndAnswers, findEntry, pickPlayableChar, relaxChar, rem
 import { CPU_LEVELS, cpuAnswer } from './cpu.js?v=__VERSION__';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
+const HELP_SEEN_KEY = 'shiritori:help-seen:v1';
+const APP_NAME = 'まわしりとり';
+const SHARE_TAG = '#まわしりとり';
 const BEST_KEY = 'shiritori:best:v1';
 const TIME_ATTACK_SECONDS = 60;
 const SOLO_TOPIC = 'country'; // 1人用は答えの一覧があるお題で遊ぶ
@@ -206,8 +209,28 @@ function bindSetup() {
 
 function show(screenId) {
   document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== screenId; });
-  $('quit-btn').hidden = screenId === 'screen-setup' || screenId === 'screen-result';
+  $('quit-btn').hidden = ['screen-setup', 'screen-result', 'screen-help'].includes(screenId);
+  $('help-btn').hidden = screenId !== 'screen-setup';
   window.scrollTo(0, 0);
+}
+
+// ---------- 遊び方 ----------
+
+function showHelp() {
+  try {
+    localStorage.setItem(HELP_SEEN_KEY, '1');
+  } catch {
+    // 保存できなくても遊び方は見られる
+  }
+  show('screen-help');
+}
+
+function helpSeen() {
+  try {
+    return localStorage.getItem(HELP_SEEN_KEY) === '1';
+  } catch {
+    return true; // 保存できない環境で毎回出すとじゃまなので出さない
+  }
 }
 
 function vibrate(pattern) {
@@ -886,6 +909,7 @@ function showResult() {
   stopTimer();
   clearCpuTimer();
   $('again-btn').textContent = game.mode === 'group' ? '同じメンバーでもう一度' : 'もう一度';
+  $('share-status').textContent = '';
   if (game.mode === 'timeattack') {
     renderStats(showTimeAttackResult());
     renderMissed();
@@ -942,6 +966,48 @@ function renderTraps() {
     body.textContent = names.join('、');
     li.append(head, body);
     list.append(li);
+  }
+}
+
+// ---------- シェア ----------
+
+function shareUrl() {
+  return `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
+}
+
+function buildShareText() {
+  const count = answeredCount();
+  const topic = game.topic ? `${game.topic.label}しりとり` : 'しりとり';
+  if (game.mode === 'timeattack') {
+    return `${APP_NAME}のタイムアタックで、60秒で ${count} ${game.topic.unit}つなげた！`;
+  }
+  const alive = alivePlayers();
+  if (game.mode === 'cpu') {
+    const cpu = game.players.find((p) => p.isCpu);
+    const won = alive.length === 1 && !alive[0].isCpu;
+    return `${APP_NAME}で ${cpu.name} と${topic}。${count}語つながって${won ? '勝った！🎉' : '負けた…次こそ！'}`;
+  }
+  const result = alive.length === 1 ? `${alive[0].name}さんの勝ち🎉` : '引き分け！';
+  return `${APP_NAME}で ${game.players.length}人で${topic}。${count}語つながって${result}`;
+}
+
+async function shareResult() {
+  const text = `${buildShareText()}\n${SHARE_TAG}`;
+  const url = shareUrl();
+  $('share-status').textContent = '';
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: APP_NAME, text, url });
+      return;
+    } catch (e) {
+      if (e?.name === 'AbortError') return; // シェア画面を閉じただけ
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    $('share-status').textContent = '結果をコピーしました。SNS などに貼り付けてね';
+  } catch {
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(`${text}\n${url}`)}`, '_blank', 'noopener');
   }
 }
 
@@ -1014,6 +1080,9 @@ function init() {
   $('out-btn').addEventListener('click', afterOut);
   $('again-btn').addEventListener('click', startGame);
   $('back-btn').addEventListener('click', () => { game = null; renderSetup(); show('screen-setup'); });
+  $('share-btn').addEventListener('click', shareResult);
+  $('help-btn').addEventListener('click', showHelp);
+  $('help-close-btn').addEventListener('click', () => show('screen-setup'));
   $('quit-btn').addEventListener('click', quitGame);
 
   // ゲーム中に誤ってページを閉じないように
@@ -1021,7 +1090,16 @@ function init() {
     if (game && $('screen-result').hidden) e.preventDefault();
   });
 
-  show('screen-setup');
+  // はじめて開いた人には遊び方を見せる
+  if (helpSeen()) show('screen-setup');
+  else showHelp();
+
+  // ホーム画面に追加したときやオフラインでも開けるように
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // 登録できなくても、ふつうに遊ぶぶんには困らない
+    });
+  }
 }
 
 init();

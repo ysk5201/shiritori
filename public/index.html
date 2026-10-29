@@ -3,15 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1b1d24">
-  <meta name="description" content="1台のスマホを回して、声を出さずに遊べるしりとり">
-  <title>しずかにしりとり</title>
+  <meta name="theme-color" content="#3b5bdb">
+  <meta name="description" content="声を出さずに、スマホ1台を回して遊ぶしりとり。国名しりとりの自動判定、CPU対戦、タイムアタックも。インストール不要で、URLを開くだけで遊べます。">
+  <title>まわしりとり</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="まわしりとり">
+  <meta property="og:title" content="まわしりとり">
+  <meta property="og:description" content="声を出さずに、スマホ1台を回して遊ぶしりとり。国名しりとり・CPU対戦・タイムアタック">
+  <meta property="og:url" content="https://ysk5201.github.io/shiritori/">
+  <meta property="og:image" content="https://ysk5201.github.io/shiritori/ogp.png">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="まわしりとり">
   <link rel="stylesheet" href="style.css?v=__VERSION__">
   <script type="module" src="js/app.js?v=__VERSION__"></script>
 </head>
 <body>
   <header class="appbar">
-    <h1 class="appbar-title">しずかにしりとり</h1>
+    <h1 class="appbar-title"><img src="icons/icon.svg" alt="" class="appbar-icon">まわしりとり</h1>
+    <button type="button" class="btn-text" id="help-btn">遊び方</button>
     <button type="button" class="btn-text" id="quit-btn" hidden>中断</button>
   </header>
 
@@ -111,6 +125,41 @@
 
       <p class="error" id="setup-error" role="alert"></p>
       <button type="button" class="btn btn-primary btn-large" id="start-btn">はじめる</button>
+      <footer class="site-footer">
+        <a href="privacy.html">プライバシーポリシー</a>
+        <a href="https://github.com/ysk5201/shiritori/issues" target="_blank" rel="noopener">ご意見・不具合の報告</a>
+      </footer>
+    </section>
+
+    <!-- 遊び方 -->
+    <section class="screen" id="screen-help" hidden>
+      <div class="card help">
+        <h2 class="help-title">まわしりとりへようこそ</h2>
+        <p>声を出さずに、スマホ1台を回して遊ぶしりとりです。図書館や電車の中など、話せない場所でもこっそり遊べます。</p>
+      </div>
+      <div class="card help">
+        <h3>みんなで遊ぶ</h3>
+        <ol>
+          <li>プレイヤーの名前を入れて「はじめる」</li>
+          <li>「次は ○○ さん」と出たら、その人にスマホを渡す</li>
+          <li>受け取った人は「受け取った！」を押して答えを入力</li>
+          <li>「ん」で終わる・時間切れ・こうさんで脱落。最後に残った人の勝ち</li>
+        </ol>
+      </div>
+      <div class="card help">
+        <h3>答えの入れ方</h3>
+        <p>予測変換がヒントにならないよう、アプリの中のキーボードで入力します。iPhone と同じフリック入力です(キーを押したまま上下左右にずらす)。同じキーを続けて押しても入力できます。</p>
+        <p>「゛゜小」キーで、最後の文字を が・ぱ・ゃ などに変えられます。</p>
+      </div>
+      <div class="card help">
+        <h3>お題「国名」</h3>
+        <p>国名だけでしりとりをします。答えはアプリが自動で判定するので、相談はいりません。「アメリカ」「べいこく」など、よく使う呼び方も正解です。</p>
+      </div>
+      <div class="card help">
+        <h3>1人で遊ぶ</h3>
+        <p>設定画面の上で「1人で」を選ぶと、CPU との対戦や、60秒で何か国つなげられるかのタイムアタックで遊べます。</p>
+      </div>
+      <button type="button" class="btn btn-primary btn-large" id="help-close-btn">さっそく遊ぶ</button>
     </section>
 
     <!-- 手渡し -->
@@ -189,6 +238,8 @@
         <h2 class="card-title">つながった言葉</h2>
         <ol class="history history-full" id="result-history"></ol>
       </div>
+      <button type="button" class="btn btn-ghost btn-share" id="share-btn">結果をシェア</button>
+      <p class="muted share-status" id="share-status" role="status"></p>
       <button type="button" class="btn btn-primary btn-large" id="again-btn">同じメンバーでもう一度</button>
       <button type="button" class="btn btn-ghost" id="back-btn">設定にもどる</button>
     </section>

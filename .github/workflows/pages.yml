@@ -37,7 +37,7 @@ jobs:
       - uses: actions/configure-pages@v5
       # 更新時にスマホのキャッシュで新旧のファイルが混ざらないよう、読み込む URL に版番号を付ける
       - name: Stamp asset version
-        run: sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" public/index.html public/js/*.js
+        run: sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" public/index.html public/sw.js public/js/*.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fff"/>
+    </marker>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#3b5bdb"/>
+  <!-- スマホを回して渡すイメージの、ぐるっと回る2本の矢印 -->
+  <g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round" opacity="0.92">
+    <path d="M 108 236 A 150 150 0 0 1 366 140" marker-end="url(#head)"/>
+    <path d="M 404 276 A 150 150 0 0 1 146 372" marker-end="url(#head)"/>
+  </g>
+  <text x="256" y="322" text-anchor="middle" font-size="200" font-weight="800" fill="#fff"
+        font-family="'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Noto Sans CJK JP',sans-serif">ま</text>
+</svg>

@@ -529,3 +529,34 @@ main:has(> #screen-turn:not([hidden])) { padding-bottom: calc(env(safe-area-inse
 }
 
 .traps .missed-head { color: var(--muted); }
+
+/* ---------- アプリ名・遊び方・シェア・フッター ---------- */
+
+.appbar-title { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+
+.appbar-icon { width: 26px; height: 26px; }
+
+.help h3, .help-title { margin: 0 0 6px; font-size: 1rem; }
+
+.help-title { font-size: 1.15rem; }
+
+.help p, .help ol { margin: 0 0 6px; font-size: 0.95rem; }
+
+.help ol { padding-left: 1.3em; }
+
+.btn-share { border-style: solid; color: var(--primary); border-color: var(--primary); }
+
+.share-status { text-align: center; margin: -6px 0 0; min-height: 1.2em; }
+
+.share-status:empty { display: none; }
+
+.site-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.site-footer a { color: var(--muted); }
