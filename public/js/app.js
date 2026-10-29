@@ -1,5 +1,5 @@
 import { START_CHARS, FLICK_DIRECTIONS, FLICK_KEYS, checkWord, cycleVariant, flickChar, lastChar, tapCycleNext } from './kana.js?v=__VERSION__';
-import { buildTopic, findEntry, pickPlayableChar, relaxChar, remainingStarting } from './topics.js?v=__VERSION__';
+import { buildTopic, findEntry, pickPlayableChar, relaxChar, remainingStarting, suggestAnswers } from './topics.js?v=__VERSION__';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
 const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
@@ -231,6 +231,7 @@ function startGame() {
     pendingWord: null,
     topic: buildTopic(setup.topic),
     usedTopicIds: new Set(),
+    missed: [], // 答えられずに脱落したときの「まだこんな答えがあった」(結果画面で見せる)
     notice: '',
   };
 
@@ -650,6 +651,12 @@ function eliminate(reason, word) {
   const player = game.players[game.current];
   player.alive = false;
   player.outReason = reason;
+  // その場で見せると次の人へのヒントになるので、記録だけして結果画面で見せる。
+  // 詰み(stuck)はそもそも答えが残っていないので対象外。
+  if (game.topic && reason !== 'stuck') {
+    const { examples, total } = suggestAnswers(game.topic, game.usedTopicIds, game.required, rules());
+    if (total > 0) game.missed.push({ player: game.current, char: game.required, examples, total });
+  }
 
   setChip($('out-name'), player);
   $('out-reason').textContent = reason === 'stuck' ? stuckReason() : OUT_REASONS[reason](word);
@@ -716,8 +723,32 @@ function showResult() {
     dl.append(dt, dd);
   }
 
+  renderMissed();
   renderHistory($('result-history'), game.history);
   show('screen-result');
+}
+
+function renderMissed() {
+  const list = $('result-missed');
+  list.replaceChildren();
+  $('result-missed-card').hidden = game.missed.length === 0;
+  for (const m of game.missed) {
+    const li = document.createElement('li');
+    li.className = 'missed-item';
+    li.style.setProperty('--player-color', game.players[m.player].color);
+
+    const head = document.createElement('p');
+    head.className = 'missed-head';
+    head.textContent = `${game.players[m.player].name}「${m.char}」`;
+
+    const body = document.createElement('p');
+    body.className = 'missed-body';
+    const rest = m.total - m.examples.length;
+    body.textContent = m.examples.join('、') + (rest > 0 ? ` ほか ${rest} ${game.topic.unit}` : '');
+
+    li.append(head, body);
+    list.append(li);
+  }
 }
 
 function quitGame() {
