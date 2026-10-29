@@ -18,7 +18,36 @@
   <main>
     <!-- 設定 -->
     <section class="screen" id="screen-setup">
-      <div class="card">
+      <div class="mode-switch">
+        <button type="button" class="mode-btn" id="mode-group" aria-pressed="true">
+          みんなで<small>1台を回して遊ぶ</small>
+        </button>
+        <button type="button" class="mode-btn" id="mode-solo" aria-pressed="false">
+          1人で<small>CPU対戦・タイムアタック</small>
+        </button>
+      </div>
+
+      <div class="card" id="solo-card" hidden>
+        <h2 class="card-title">1人用モード</h2>
+        <label class="field">
+          <span>モード</span>
+          <select id="opt-solo">
+            <option value="cpu">CPUと対戦</option>
+            <option value="timeattack">タイムアタック(60秒)</option>
+          </select>
+        </label>
+        <label class="field" id="opt-level-field">
+          <span>CPUの強さ</span>
+          <select id="opt-level">
+            <option value="easy">よわい</option>
+            <option value="normal">ふつう</option>
+            <option value="hard">つよい</option>
+          </select>
+        </label>
+        <p class="field-help" id="solo-help"></p>
+      </div>
+
+      <div class="card" id="players-card">
         <h2 class="card-title">プレイヤー</h2>
         <ul class="player-list" id="player-list"></ul>
         <button type="button" class="btn btn-ghost" id="add-player-btn">＋ プレイヤーを追加</button>
@@ -26,7 +55,7 @@
 
       <div class="card">
         <h2 class="card-title">ルール</h2>
-        <label class="field">
+        <label class="field" id="opt-topic-field">
           <span>お題</span>
           <select id="opt-topic">
             <option value="free">なし(自由)</option>
@@ -43,7 +72,7 @@
           </label>
           <p class="field-help" id="deadend-help"></p>
         </div>
-        <label class="field">
+        <label class="field" id="opt-time-field">
           <span>制限時間</span>
           <select id="opt-time">
             <option value="0">なし</option>
@@ -70,7 +99,7 @@
           <input type="checkbox" id="opt-dakuten">
           <span>濁点・半濁点を区別しない(か＝が＝ぱ)</span>
         </label>
-        <label class="field field-check">
+        <label class="field field-check" id="opt-judge-field">
           <input type="checkbox" id="opt-judge">
           <span>みんなで判定する(⭕❌の多数決。お題ありのときは自動判定)</span>
         </label>
@@ -111,6 +140,7 @@
           <button type="button" class="btn-text btn-giveup" id="giveup-btn">こうさん</button>
         </div>
         <p class="topic-hint" id="topic-hint" hidden></p>
+        <p class="notice" id="turn-notice" hidden></p>
         <div class="answer-display" id="answer-display" role="textbox" aria-label="答え" aria-readonly="true"></div>
         <p class="error" id="answer-error" role="alert"></p>
       </div>

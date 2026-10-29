@@ -1,7 +1,12 @@
 import { START_CHARS, FLICK_DIRECTIONS, FLICK_KEYS, checkWord, cycleVariant, flickChar, lastChar, tapCycleNext } from './kana.js?v=__VERSION__';
 import { buildTopic, findEntry, pickPlayableChar, relaxChar, remainingStarting, suggestAnswers } from './topics.js?v=__VERSION__';
+import { CPU_LEVELS, cpuAnswer } from './cpu.js?v=__VERSION__';
 
 const STORAGE_KEY = 'shiritori:setup:v1';
+const BEST_KEY = 'shiritori:best:v1';
+const TIME_ATTACK_SECONDS = 60;
+const SOLO_TOPIC = 'country'; // 1人用は答えの一覧があるお題で遊ぶ
+const CPU_COLOR = '#868e96';
 const PLAYER_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e64980', '#5c7cfa'];
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
@@ -27,6 +32,11 @@ const OUT_REASONS = {
 
 const $ = (id) => document.getElementById(id);
 
+const SOLO_HELP = {
+  cpu: 'CPUと交互に国名をつなぎます。',
+  timeattack: '60秒で何か国つなげられるか挑戦します。「ん」で終わる国は使えません。',
+};
+
 const DEADEND_HELP = {
   relax: '続く答えがない文字になったら、濁点を外して続けます(ご→こ)。それでもなければランダムに引き直します',
   stuck: '続く答えがない文字で終わる答えを出すと、次の人が脱落します(例: 国名で「トーゴ」)',
@@ -35,6 +45,9 @@ const DEADEND_HELP = {
 // ---------- 設定 ----------
 
 const defaultSetup = () => ({
+  playMode: 'group', // 'group' 1台を回す / 'solo' 1人用
+  soloMode: 'cpu', // 'cpu' CPU対戦 / 'timeattack' タイムアタック
+  cpuLevel: 'normal',
   players: ['プレイヤー1', 'プレイヤー2'],
   topic: 'free',
   deadEnd: 'relax', // 続く答えがない文字になったとき: 'relax' 濁点を外す→引き直し / 'stuck' 次の人が脱落
@@ -105,12 +118,30 @@ function renderPlayerList() {
   $('add-player-btn').disabled = setup.players.length >= MAX_PLAYERS;
 }
 
+// 遊び方(みんなで / 1人で)に合わせて、関係のある設定だけを見せる
+function renderSetupVisibility() {
+  const solo = setup.playMode === 'solo';
+  const timeAttack = solo && setup.soloMode === 'timeattack';
+  $('mode-group').setAttribute('aria-pressed', String(!solo));
+  $('mode-solo').setAttribute('aria-pressed', String(solo));
+  $('players-card').hidden = solo;
+  $('solo-card').hidden = !solo;
+  $('opt-level-field').hidden = timeAttack;
+  $('solo-help').textContent = `${SOLO_HELP[setup.soloMode]}お題は「国名」で遊びます。`;
+  $('opt-topic-field').hidden = solo;
+  $('opt-judge-field').hidden = solo;
+  $('opt-time-field').hidden = timeAttack;
+  $('opt-deadend-field').hidden = timeAttack || (!solo && setup.topic === 'free');
+}
+
 function renderSetup() {
   renderPlayerList();
+  $('opt-solo').value = setup.soloMode;
+  $('opt-level').value = setup.cpuLevel;
   $('opt-topic').value = setup.topic;
   $('opt-deadend').value = setup.deadEnd;
   $('deadend-help').textContent = DEADEND_HELP[setup.deadEnd];
-  $('opt-deadend-field').hidden = setup.topic === 'free';
+  renderSetupVisibility();
   $('opt-time').value = String(setup.timeLimit);
   $('opt-first').value = setup.firstWord;
   $('opt-long').value = setup.longVowel;
@@ -129,10 +160,20 @@ function bindSetup() {
     const inputs = $('player-list').querySelectorAll('input');
     inputs[inputs.length - 1].select();
   });
+  for (const [id, mode] of [['mode-group', 'group'], ['mode-solo', 'solo']]) {
+    $(id).addEventListener('click', () => {
+      setup.playMode = mode;
+      saveSetup();
+      $('setup-error').textContent = '';
+      renderSetupVisibility();
+    });
+  }
+  $('opt-solo').addEventListener('change', (e) => { setup.soloMode = e.target.value; saveSetup(); renderSetupVisibility(); });
+  $('opt-level').addEventListener('change', (e) => { setup.cpuLevel = e.target.value; saveSetup(); });
   $('opt-topic').addEventListener('change', (e) => {
     setup.topic = e.target.value;
     saveSetup();
-    $('opt-deadend-field').hidden = setup.topic === 'free';
+    renderSetupVisibility();
   });
   $('opt-deadend').addEventListener('change', (e) => {
     setup.deadEnd = e.target.value;
@@ -210,29 +251,49 @@ function rules() {
   return { longVowel: game.settings.longVowel, ignoreDakuten: game.settings.ignoreDakuten };
 }
 
-function startGame() {
+function buildPlayers() {
+  if (setup.playMode === 'solo') {
+    const players = [{ name: 'あなた', color: PLAYER_COLORS[1] }];
+    if (setup.soloMode === 'cpu') {
+      players.push({ name: `CPU(${CPU_LEVELS[setup.cpuLevel].label})`, color: CPU_COLOR, isCpu: true });
+    }
+    return players;
+  }
   const names = setup.players.map((n) => n.trim());
   if (names.some((n) => n === '')) {
     $('setup-error').textContent = '名前が空のプレイヤーがいます';
-    return;
+    return null;
   }
   if (new Set(names).size !== names.length) {
     $('setup-error').textContent = '同じ名前のプレイヤーがいます';
-    return;
+    return null;
   }
+  return names.map((name, i) => ({ name, color: PLAYER_COLORS[i] }));
+}
 
+function startGame() {
+  const players = buildPlayers();
+  if (!players) return;
+  const solo = setup.playMode === 'solo';
+  const settings = solo ? { ...setup, topic: SOLO_TOPIC, judge: false } : { ...setup };
+
+  clearCpuTimer();
   game = {
-    settings: { ...setup },
-    players: names.map((name, i) => ({ name, color: PLAYER_COLORS[i], alive: true, outReason: null })),
+    settings,
+    // 'group' 1台を回す / 'cpu' CPU対戦 / 'timeattack' タイムアタック
+    mode: solo ? setup.soloMode : 'group',
+    players: players.map((p) => ({ ...p, alive: true, outReason: null })),
     history: [],
     used: new Set(),
     required: '',
     current: 0,
     pendingWord: null,
-    topic: buildTopic(setup.topic),
+    topic: buildTopic(settings.topic),
     usedTopicIds: new Set(),
     missed: [], // 答えられずに脱落したときの「まだこんな答えがあった」(結果画面で見せる)
     notice: '',
+    deadline: null, // タイムアタックの終了時刻(最初の回答画面で決める)
+    cpuTimer: null,
   };
 
   if (setup.firstWord === 'shiritori') {
@@ -255,7 +316,7 @@ function nextTurn({ advance = true, allowStuck = true } = {}) {
   if (advance) advanceTurn();
   game.notice = '';
   if (game.topic && remainingCount() === 0) {
-    if (allowStuck && game.settings.deadEnd === 'stuck') {
+    if (allowStuck && game.settings.deadEnd === 'stuck' && game.mode !== 'timeattack') {
       eliminate('stuck');
       return;
     }
@@ -271,7 +332,9 @@ function nextTurn({ advance = true, allowStuck = true } = {}) {
       : `「${dead}」で始まる${game.topic.label}はもうないので、「${next}」から始めます`;
     game.required = next;
   }
-  showHandoff();
+  // 1人用は手渡しがないので、そのまま回答画面へ
+  if (game.mode === 'group') showHandoff();
+  else showTurn();
 }
 
 function remainingCount() {
@@ -306,6 +369,12 @@ function showHandoff() {
 function showTurn() {
   const player = game.players[game.current];
   setChip($('turn-player'), player);
+  if (game.mode === 'timeattack') $('turn-player').textContent = `${answeredCount()} ${game.topic.unit}`;
+  $('turn-notice').textContent = game.notice;
+  $('turn-notice').hidden = game.mode === 'group' || game.notice === '';
+  $('giveup-btn').textContent = game.mode === 'timeattack' ? '終了' : 'こうさん';
+  $('giveup-btn').hidden = !!player.isCpu;
+  $('keyboard').classList.toggle('is-disabled', !!player.isCpu);
   $('required-char').textContent = game.required;
   $('required-label').textContent = `から始まる${game.topic ? game.topic.label : '言葉'}`;
   $('topic-hint').hidden = !game.topic;
@@ -315,17 +384,60 @@ function showTurn() {
   $('answer-error').textContent = '';
   typed = '';
   lastTap = null;
+  $('answer-display').classList.remove('is-thinking');
   renderTyped();
   renderHistory($('turn-history'), game.history, { limit: 30 });
   show('screen-turn');
-  startTimer();
+  if (player.isCpu) {
+    playCpuTurn();
+  } else {
+    startTimer();
+  }
+}
+
+function answeredCount() {
+  return game.history.filter((h) => h.player !== null).length;
+}
+
+// ---------- CPU ----------
+
+function clearCpuTimer() {
+  if (game?.cpuTimer) clearTimeout(game.cpuTimer);
+}
+
+// 少し考えるふりをしてから答える
+function playCpuTurn() {
+  stopTimer();
+  $('timer-bar').hidden = true;
+  $('timer-text').textContent = '';
+  $('answer-display').textContent = '考え中…';
+  $('answer-display').classList.replace('is-empty', 'is-thinking');
+  const thinkMs = 900 + Math.random() * 900;
+  game.cpuTimer = setTimeout(() => {
+    const move = cpuAnswer(game.topic, game.usedTopicIds, game.required, rules(), game.settings.cpuLevel, {
+      stuckWins: game.settings.deadEnd === 'stuck',
+    });
+    $('answer-display').classList.remove('is-thinking');
+    if (!move) {
+      eliminate('giveup');
+      return;
+    }
+    typed = move.word;
+    renderTyped();
+    game.cpuTimer = setTimeout(() => {
+      if (lastChar(move.word, rules()) === 'ん') eliminate('n', move.word);
+      else acceptWord(move.word, move.entry);
+    }, 800);
+  }, thinkMs);
 }
 
 // ---------- タイマー ----------
 
+// 1回ごとの制限時間。タイムアタックは全体で60秒(回答のたびにリセットしない)。
 function startTimer() {
   stopTimer();
-  const limit = game.settings.timeLimit;
+  const timeAttack = game.mode === 'timeattack';
+  const limit = timeAttack ? TIME_ATTACK_SECONDS : game.settings.timeLimit;
   const bar = $('timer-bar');
   const fill = $('timer-fill');
   const text = $('timer-text');
@@ -333,8 +445,9 @@ function startTimer() {
   text.textContent = '';
   if (limit === 0) return;
 
-  const deadline = performance.now() + limit * 1000;
-  let warned = false;
+  if (timeAttack) game.deadline ??= performance.now() + limit * 1000;
+  const deadline = timeAttack ? game.deadline : performance.now() + limit * 1000;
+  let warned = deadline - performance.now() <= WARN_SECONDS * 1000;
 
   const tick = () => {
     const remainingMs = Math.max(0, deadline - performance.now());
@@ -351,7 +464,8 @@ function startTimer() {
     if (remainingMs <= 0) {
       stopTimer();
       vibrate([200, 100, 200]);
-      eliminate('time');
+      if (timeAttack) finishTimeAttack();
+      else eliminate('time');
     }
   };
   tick();
@@ -565,6 +679,11 @@ function submitAnswer() {
     }
   }
 
+  if (result.endsWithN && game.mode === 'timeattack') {
+    showAnswerError('「ん」で終わる国は使えないよ');
+    return;
+  }
+
   stopTimer();
   if (result.endsWithN) {
     eliminate('n', result.word);
@@ -646,17 +765,21 @@ function acceptWord(word, entry = null) {
   nextTurn();
 }
 
+// その場で見せると次の人へのヒントになるので、記録だけして結果画面で見せる
+function recordMissed() {
+  if (!game.topic || game.players[game.current].isCpu) return;
+  const { examples, total } = suggestAnswers(game.topic, game.usedTopicIds, game.required, rules());
+  if (total > 0) game.missed.push({ player: game.current, char: game.required, examples, total });
+}
+
 function eliminate(reason, word) {
   stopTimer();
+  clearCpuTimer();
   const player = game.players[game.current];
   player.alive = false;
   player.outReason = reason;
-  // その場で見せると次の人へのヒントになるので、記録だけして結果画面で見せる。
-  // 詰み(stuck)はそもそも答えが残っていないので対象外。
-  if (game.topic && reason !== 'stuck') {
-    const { examples, total } = suggestAnswers(game.topic, game.usedTopicIds, game.required, rules());
-    if (total > 0) game.missed.push({ player: game.current, char: game.required, examples, total });
-  }
+  // 詰み(stuck)はそもそも答えが残っていないので対象外
+  if (reason !== 'stuck') recordMissed();
 
   setChip($('out-name'), player);
   $('out-reason').textContent = reason === 'stuck' ? stuckReason() : OUT_REASONS[reason](word);
@@ -678,6 +801,12 @@ function stuckReason() {
   return `「${game.required}」で始まる${game.topic.label}がもう残っていない…${by}`;
 }
 
+function finishTimeAttack() {
+  stopTimer();
+  recordMissed();
+  showResult();
+}
+
 function afterOut() {
   if (alivePlayers().length <= 1) {
     showResult();
@@ -688,8 +817,53 @@ function afterOut() {
 
 // ---------- 結果 ----------
 
+function loadBest() {
+  try {
+    return JSON.parse(localStorage.getItem(BEST_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBest(best) {
+  try {
+    localStorage.setItem(BEST_KEY, JSON.stringify(best));
+  } catch {
+    // 保存できない環境では記録を残さない
+  }
+}
+
+function showTimeAttackResult() {
+  const score = answeredCount();
+  const best = loadBest();
+  const key = `timeattack:${game.settings.topic}`;
+  const prev = best[key] ?? 0;
+  const isNew = score > prev;
+  if (isNew) saveBest({ ...best, [key]: score });
+
+  $('result-label').textContent = isNew && score > 0 ? 'タイムアタック 🎉 自己ベスト更新！' : 'タイムアタック(60秒)';
+  $('result-winner').textContent = `${score} ${game.topic.unit}`;
+  $('result-winner').style.setProperty('--player-color', 'var(--primary)');
+
+  const played = game.history.filter((h) => h.player !== null);
+  const longest = played.reduce((b, h) => (!b || h.word.length > b.word.length ? h : b), null);
+  return [
+    ['自己ベスト', `${Math.max(score, prev)} ${game.topic.unit}`],
+    ['いちばん長い国名', longest ? longest.label : '—'],
+  ];
+}
+
 function showResult() {
   stopTimer();
+  clearCpuTimer();
+  $('again-btn').textContent = game.mode === 'group' ? '同じメンバーでもう一度' : 'もう一度';
+  if (game.mode === 'timeattack') {
+    renderStats(showTimeAttackResult());
+    renderMissed();
+    renderHistory($('result-history'), game.history);
+    show('screen-result');
+    return;
+  }
   const alive = alivePlayers();
   if (alive.length === 1) {
     $('result-label').textContent = '勝者';
@@ -713,6 +887,13 @@ function showResult() {
       ? `${game.players.filter((_, i) => counts[i] === topCount).map((p) => p.name).join('、')}(${topCount} 語)`
       : '—'],
   ];
+  renderStats(stats);
+  renderMissed();
+  renderHistory($('result-history'), game.history);
+  show('screen-result');
+}
+
+function renderStats(stats) {
   const dl = $('result-stats');
   dl.replaceChildren();
   for (const [label, value] of stats) {
@@ -722,10 +903,6 @@ function showResult() {
     dd.textContent = value;
     dl.append(dt, dd);
   }
-
-  renderMissed();
-  renderHistory($('result-history'), game.history);
-  show('screen-result');
 }
 
 function renderMissed() {
@@ -754,6 +931,7 @@ function renderMissed() {
 function quitGame() {
   if (!confirm('ゲームを中断して設定にもどりますか？')) return;
   stopTimer();
+  clearCpuTimer();
   game = null;
   renderSetup();
   show('screen-setup');
@@ -769,12 +947,16 @@ function init() {
   $('handoff-btn').addEventListener('click', showTurn);
   // PC で遊ぶとき用に、Backspace と Enter だけ物理キーボードでも受け付ける
   document.addEventListener('keydown', (e) => {
-    if ($('screen-turn').hidden || e.isComposing) return;
+    if ($('screen-turn').hidden || e.isComposing || game?.players[game.current].isCpu) return;
     if (e.key === 'Backspace') { e.preventDefault(); deleteChar(); }
     if (e.key === 'Enter') { e.preventDefault(); submitAnswer(); }
   });
   $('giveup-btn').addEventListener('click', () => {
-    if (confirm('こうさんしますか？')) eliminate('giveup');
+    if (game.mode === 'timeattack') {
+      if (confirm('ここで終了しますか？')) finishTimeAttack();
+    } else if (confirm('こうさんしますか？')) {
+      eliminate('giveup');
+    }
   });
   $('judge-btn').addEventListener('click', decideJudge);
   $('out-btn').addEventListener('click', afterOut);
