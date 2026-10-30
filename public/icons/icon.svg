@@ -1,15 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#fff"/>
-    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1e1b4b" flood-opacity="0.35"/></filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#3b5bdb"/>
-  <!-- スマホを回して渡すイメージの、ぐるっと回る2本の矢印 -->
-  <g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round" opacity="0.92">
-    <path d="M 108 236 A 150 150 0 0 1 366 140" marker-end="url(#head)"/>
-    <path d="M 404 276 A 150 150 0 0 1 146 372" marker-end="url(#head)"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 後ろのスマホ -->
+  <g transform="rotate(-16 256 280)">
+    <rect x="150" y="128" width="168" height="290" rx="34" fill="#fff" opacity="0.28"/>
   </g>
-  <text x="256" y="322" text-anchor="middle" font-size="200" font-weight="800" fill="#fff"
-        font-family="'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Noto Sans CJK JP',sans-serif">ま</text>
+  <!-- 前のスマホ(渡しているところ) -->
+  <g transform="rotate(12 256 280)" filter="url(#sh)">
+    <rect x="196" y="116" width="176" height="300" rx="36" fill="#fff"/>
+    <rect x="258" y="134" width="52" height="10" rx="5" fill="#e0e7ff"/>
+    <text x="284" y="320" text-anchor="middle" font-size="150" font-weight="800" fill="url(#ink)" font-family="'Hiragino Maru Gothic ProN','Hiragino Sans','Noto Sans JP','Noto Sans CJK JP',sans-serif">ま</text>
+  </g>
+  <!-- 渡す動きの矢印 -->
+  <path d="M 96 168 Q 120 88 214 82" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 196 56 L 232 82 L 196 106" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
 </svg>

@@ -6,13 +6,14 @@ const path = require('path');
 
 const root = path.join(__dirname, '..', 'public');
 const svg = fs.readFileSync(path.join(root, 'icons', 'icon.svg'), 'utf8');
-const dataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+const toDataUrl = (src) => `data:image/svg+xml;base64,${Buffer.from(src).toString('base64')}`;
+const dataUrl = toDataUrl(svg);
+// maskable / apple-touch-icon は端末側で角を丸めるので、角丸なしの正方形にする(絵柄は安全領域の内側に収まっている)
+const squareUrl = toDataUrl(svg.replace(/rx="112"/, 'rx="0"'));
 
-const icon = (size, { maskable = false } = {}) => `
-  <body style="margin:0;background:${maskable ? '#3b5bdb' : 'transparent'}">
-    <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">
-      <img src="${dataUrl}" style="width:${maskable ? size * 0.8 : size}px">
-    </div>
+const icon = (size, { square = false } = {}) => `
+  <body style="margin:0;background:transparent">
+    <img src="${square ? squareUrl : dataUrl}" style="width:${size}px;height:${size}px;display:block">
   </body>`;
 
 const ogp = `
@@ -22,7 +23,7 @@ const ogp = `
     <div>
       <div style="font-size:104px;font-weight:800;letter-spacing:4px">まわしりとり</div>
       <div style="font-size:40px;margin-top:20px;line-height:1.5">声を出さずに、スマホ1台を<br>回して遊ぶしりとり</div>
-      <div style="font-size:30px;margin-top:24px;color:#3b5bdb;font-weight:700">国名しりとり・CPU対戦・タイムアタック</div>
+      <div style="font-size:30px;margin-top:24px;color:#7c3aed;font-weight:700">国名しりとり・CPU対戦・タイムアタック</div>
     </div>
   </body>`;
 
@@ -32,8 +33,8 @@ const ogp = `
   const shots = [
     ['icons/icon-192.png', icon(192), 192, 192, true],
     ['icons/icon-512.png', icon(512), 512, 512, true],
-    ['icons/maskable-512.png', icon(512, { maskable: true }), 512, 512, false],
-    ['icons/apple-touch-icon.png', icon(180, { maskable: true }), 180, 180, false],
+    ['icons/maskable-512.png', icon(512, { square: true }), 512, 512, false],
+    ['icons/apple-touch-icon.png', icon(180, { square: true }), 180, 180, false],
     ['ogp.png', ogp, 1200, 630, false],
   ];
   for (const [file, html, width, height, transparent] of shots) {
